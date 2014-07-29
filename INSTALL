@@ -1,0 +1,9 @@
+Building DarkCoin
+
+See doc/readme-qt.rst for instructions on building DarkCoin-Qt,
+the intended-for-end-users, nice-graphical-interface, reference
+implementation of DarkCoin.
+
+See doc/build-*.txt for instructions on building darkcoind,
+the intended-for-services, no-graphical-interface, reference
+implementation of DarkCoin.
