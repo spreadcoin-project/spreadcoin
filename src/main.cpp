@@ -3080,7 +3080,7 @@ void UnloadBlockIndex()
 
 static CBlock getGenesisBlock()
 {
-    const char* pszTimestamp = "To be updated";
+    const char* pszTimestamp = "Bitcoin block #312971 ~1cbec6ee63d173ea4b2c645cdb162aae6637170ecbb43c15";
 
     CBlock block;
     block.vtx.resize(1);
