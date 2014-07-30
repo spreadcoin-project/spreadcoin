@@ -50,7 +50,11 @@ QMAKE_CXXFLAGS *= -D_FORTIFY_SOURCE=2
 # for extra security on Windows: enable ASLR and DEP via GCC linker flags
 win32:QMAKE_LFLAGS *= -Wl,--dynamicbase -Wl,--nxcompat
 # on Windows: enable GCC large address aware linker flag
-win32:QMAKE_LFLAGS *= -Wl,--large-address-aware
+# this is a hack to detect win64 build, it relies on the HOST variable set in .yml file
+HOST_VAR = $(HOST)
+!contains(HOST_VAR, x86_64) {
+    win32:QMAKE_LFLAGS *= -Wl,--large-address-aware
+}
 # i686-w64-mingw32
 win32:QMAKE_LFLAGS *= -static-libgcc -static-libstdc++
 
