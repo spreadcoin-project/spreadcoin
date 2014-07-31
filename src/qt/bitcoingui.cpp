@@ -22,6 +22,7 @@
 #include "notificator.h"
 #include "guiutil.h"
 #include "rpcconsole.h"
+#include "blockexplorer.h"
 #include "ui_interface.h"
 #include "wallet.h"
 #include "init.h"
@@ -66,6 +67,7 @@ BitcoinGUI::BitcoinGUI(QWidget *parent) :
     trayIcon(0),
     notificator(0),
     rpcConsole(0),
+    blockExplorer(0),
     prevBlocks(0)
 {
     restoreWindowGeometry();
@@ -144,6 +146,9 @@ BitcoinGUI::BitcoinGUI(QWidget *parent) :
     rpcConsole = new RPCConsole(this);
     connect(openRPCConsoleAction, SIGNAL(triggered()), rpcConsole, SLOT(showConsole()));
     connect(openInfoAction, SIGNAL(triggered()), rpcConsole, SLOT(showInfo()));
+
+    blockExplorer = new BlockExplorer(this);
+    connect(openBlockExplorerAction, SIGNAL(triggered()), blockExplorer, SLOT(show()));
 
     // Install event filter to be able to catch status tip events (QEvent::StatusTip)
     this->installEventFilter(this);
@@ -247,6 +252,9 @@ void BitcoinGUI::createActions()
     openInfoAction = new QAction(QIcon(":/icons/info"), tr("&Information"), this);
     openInfoAction->setStatusTip(tr("Show debugging and diagnostic information"));
 
+    openBlockExplorerAction = new QAction(QIcon(":/icons/explorer"), tr("Blockchain Explorer"), this);
+    openBlockExplorerAction->setStatusTip(tr("Open blockchain explorer"));
+
     connect(quitAction, SIGNAL(triggered()), qApp, SLOT(quit()));
     connect(aboutAction, SIGNAL(triggered()), this, SLOT(aboutClicked()));
     connect(aboutQtAction, SIGNAL(triggered()), qApp, SLOT(aboutQt()));
@@ -286,6 +294,7 @@ void BitcoinGUI::createMenuBar()
     QMenu *tools = appMenuBar->addMenu(tr("&Tools"));
     tools->addAction(openInfoAction);
     tools->addAction(openRPCConsoleAction);
+    tools->addAction(openBlockExplorerAction);
 
     QMenu *help = appMenuBar->addMenu(tr("&About"));
     help->addAction(aboutAction);
@@ -424,6 +433,7 @@ void BitcoinGUI::createTrayIconMenu()
     trayIconMenu->addAction(optionsAction);
     trayIconMenu->addAction(openInfoAction);
     trayIconMenu->addAction(openRPCConsoleAction);
+    trayIconMenu->addAction(openBlockExplorerAction);
 #ifndef Q_OS_MAC // This is built-in on Mac
     trayIconMenu->addSeparator();
     trayIconMenu->addAction(quitAction);

@@ -39,6 +39,7 @@
         <file alias="key">res/icons/key.png</file>
         <file alias="filesave">res/icons/filesave.png</file>
         <file alias="qrcode">res/icons/qrcode.png</file>
+        <file alias="explorer">res/icons/explorer.png</file>
         <file alias="console">res/icons/console.png</file>
         <file alias="info">res/icons/info.png</file>
         <file alias="back">res/icons/back.png</file>

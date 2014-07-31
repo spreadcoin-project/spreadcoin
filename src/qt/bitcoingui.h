@@ -18,6 +18,7 @@ class SendCoinsDialog;
 class SignVerifyMessageDialog;
 class Notificator;
 class RPCConsole;
+class BlockExplorer;
 
 class CWallet;
 
@@ -103,11 +104,13 @@ private:
     QAction *aboutQtAction;
     QAction *openRPCConsoleAction;
     QAction *openInfoAction;
+    QAction *openBlockExplorerAction;
 
     QSystemTrayIcon *trayIcon;
     Notificator *notificator;
     TransactionView *transactionView;
     RPCConsole *rpcConsole;
+    BlockExplorer* blockExplorer;
 
     QMovie *syncIconMovie;
     /** Keep track of previous number of blocks, to detect progress */
