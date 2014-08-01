@@ -16,8 +16,8 @@ remotes:
 - "url": "/cygdrive/D/encoin/spreadcoin"
   "dir": "spreadcoin"
 files:
-- "qt-win32-4.8.5-gitian-r5.zip"
-- "qt-win64-4.8.5-gitian-r5.zip"
+- "qt-win32-5.2.0-gitian-r3.zip"
+- "qt-win64-5.2.0-gitian-r3.zip"
 - "boost-win32-1.55.0-gitian-r6.zip"
 - "boost-win64-1.55.0-gitian-r6.zip"
 - "bitcoin-deps-win32-gitian-r13.zip"
@@ -53,7 +53,7 @@ script: |
     export PATH=$STAGING/host/bin:$PATH
     #
     cd $STAGING
-    unzip $INDIR/qt-win${BITS}-4.8.5-gitian-r5.zip
+    unzip $INDIR/qt-win${BITS}-5.2.0-gitian-r3.zip
     unzip $INDIR/boost-win${BITS}-1.55.0-gitian-r6.zip
     unzip $INDIR/bitcoin-deps-win${BITS}-gitian-r13.zip
     unzip $INDIR/protobuf-win${BITS}-2.5.0-gitian-r4.zip
@@ -77,7 +77,7 @@ script: |
     export LD_PRELOAD=/usr/lib/faketime/libfaketime.so.1
     export FAKETIME=$REFERENCE_DATETIME
     ln -s $STAGING $HOME/qt
-    $STAGING/host/bin/qmake -spec unsupported/win32-g++-cross MINIUPNPC_LIB_PATH=$STAGING MINIUPNPC_INCLUDE_PATH=$STAGING BDB_LIB_PATH=$STAGING BDB_INCLUDE_PATH=$STAGING BOOST_LIB_PATH=$STAGING BOOST_INCLUDE_PATH=$STAGING BOOST_LIB_SUFFIX=-mt-s BOOST_THREAD_LIB_SUFFIX=_win32-mt-s OPENSSL_LIB_PATH=$STAGING OPENSSL_INCLUDE_PATH=$STAGING QRENCODE_LIB_PATH=$STAGING QRENCODE_INCLUDE_PATH=$STAGING USE_QRCODE=1 INCLUDEPATH=$STAGING DEFINES=BOOST_THREAD_USE_LIB BITCOIN_NEED_QT_PLUGINS=1 QMAKE_LRELEASE=lrelease QMAKE_CXXFLAGS=-frandom-seed=spreadcoin USE_BUILD_INFO=1 USE_SSE2=1 USE_UPNP=1
+    $STAGING/host/bin/qmake -spec win32-g++ MINIUPNPC_LIB_PATH=$STAGING MINIUPNPC_INCLUDE_PATH=$STAGING BDB_LIB_PATH=$STAGING BDB_INCLUDE_PATH=$STAGING BOOST_LIB_PATH=$STAGING BOOST_INCLUDE_PATH=$STAGING BOOST_LIB_SUFFIX=-mt-s BOOST_THREAD_LIB_SUFFIX=_win32-mt-s OPENSSL_LIB_PATH=$STAGING OPENSSL_INCLUDE_PATH=$STAGING QRENCODE_LIB_PATH=$STAGING QRENCODE_INCLUDE_PATH=$STAGING USE_QRCODE=1 INCLUDEPATH=$STAGING DEFINES=BOOST_THREAD_USE_LIB BITCOIN_NEED_QT_PLUGINS=0 QMAKE_LRELEASE=lrelease QMAKE_CXXFLAGS=-frandom-seed=spreadcoin USE_BUILD_INFO=1 USE_SSE2=1 USE_UPNP=1
     make V=1 $MAKEOPTS
     $HOST-strip release/spreadcoin-qt.exe
     cp -f release/spreadcoin-qt.exe $BINDIR/
