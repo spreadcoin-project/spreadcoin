@@ -14,7 +14,7 @@ packages:
 
 reference_datetime: "2014-01-10 00:00:00"
 remotes:
-- "url": "https://github.com/spreadcoinproject/spreadcoin.git"
+- "url": "https://github.com/spreadcoin-project/spreadcoin.git"
   "dir": "spreadcoin"
 files:
 - "osx-native-depends-r3.tar.gz"

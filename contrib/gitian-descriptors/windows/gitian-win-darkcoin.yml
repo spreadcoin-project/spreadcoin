@@ -13,7 +13,7 @@ packages:
 - "faketime"
 reference_datetime: "2014-01-10 00:00:00"
 remotes:
-- "url": "/cygdrive/D/encoin/spreadcoin"
+- "url": "https://github.com/spreadcoin-project/spreadcoin.git"
   "dir": "spreadcoin"
 files:
 - "qt-win32-5.2.0-gitian-r3.zip"
