@@ -15,6 +15,11 @@ extern double GetDifficulty(const CBlockIndex* blockindex = NULL);
 
 typedef std::vector<std::string> StringList;
 
+inline std::string utostr(unsigned int n)
+{
+    return strprintf("%u", n);
+}
+
 static std::string makeHRef(const std::string& Str)
 {
     return "<a href=\"" + Str + "\">" + Str + "</a>";
@@ -201,8 +206,8 @@ std::string BlockToString(CBlockIndex* pBlock)
         {_("Generated"),   ValueToString(Reward - Fees)},
         {_("Timestamp"),   TimeToString(block.nTime)},
         {_("Difficulty"),  strprintf("%.4f", GetDifficulty(pBlock))},
-        {_("Bits"),        itostr(block.nBits)},
-        {_("Nonce"),       itostr(block.nNonce)},
+        {_("Bits"),        utostr(block.nBits)},
+        {_("Nonce"),       utostr(block.nNonce)},
         {_("Version"),     itostr(block.nVersion)},
         {_("Hash"),        "<pre>" + block.GetHash().GetHex() + "</pre>"},
         {_("Merkle Root"), "<pre>" + block.hashMerkleRoot.GetHex() + "</pre>"}
