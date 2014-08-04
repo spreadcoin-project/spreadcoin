@@ -54,4 +54,29 @@ public:
     bool WriteCheckpointPubKey(const std::string& strPubKey);
 };
 
+/** Transactions by address */
+class CAddressDB : public CLevelDB
+{
+    CAddressDB(const CAddressDB&);
+    void operator=(const CAddressDB&);
+
+public:
+    CAddressDB(size_t nCacheSize, bool fMemory, bool fWipe);
+
+    bool AddTx(const std::vector<CTransaction>& vtx, const std::vector<std::pair<uint256, CDiskTxPos> >& vpos);
+    bool GetTxs(std::vector<CDiskTxPos>& Txs, const CScriptID& Address);
+    bool ReadNextIn(const COutPoint& Out, uint256& Hash, unsigned int &n);
+
+    bool WriteReindexing(bool fReindex);
+    bool ReadReindexing(bool &fReindex);
+
+    bool WriteEnable(bool fValue);
+    bool ReadEnable(bool &fValue);
+};
+
+CTxOut getPrevOut(const CTxIn& In);
+void getNextIn(const COutPoint& Out, uint256& Hash, unsigned int& n);
+// Return transaction in tx, and if it was found inside a block, its header is placed in block
+bool ReadTransaction(const CDiskTxPos &postx, CTransaction &txOut, CBlockHeader &block);
+
 #endif // BITCOIN_TXDB_LEVELDB_H

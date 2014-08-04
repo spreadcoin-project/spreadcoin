@@ -6,6 +6,7 @@
 #include "blockexplorer.h"
 #include "ui_blockexplorer.h"
 #include "main.h"
+#include "txdb.h"
 #include "util.h"
 #include "ui_interface.h"
 #include "bitcoinunits.h"
@@ -25,15 +26,6 @@ static std::string makeHRef(const std::string& Str)
     return "<a href=\"" + Str + "\">" + Str + "</a>";
 }
 
-static CTxOut getPrevOut(const CTxIn& In)
-{
-    CTransaction tx;
-    uint256 hashBlock = 0;
-    if (GetTransaction(In.prevout.hash, tx, hashBlock, true))
-        return tx.vout[In.prevout.n];
-    return CTxOut();
-}
-
 static int64_t getTxIn(const CTransaction& tx)
 {
     if (tx.IsCoinBase())
@@ -45,9 +37,9 @@ static int64_t getTxIn(const CTransaction& tx)
     return Sum;
 }
 
-static std::string ValueToString(int64 nValue)
+static std::string ValueToString(int64 nValue, bool AllowNegative = false)
 {
-    if (nValue < 0)
+    if (nValue < 0 && !AllowNegative)
         return _("unknown");
 
     QString Str = BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, nValue);
@@ -156,7 +148,7 @@ static std::string TxToRow(const CTransaction& tx, const CScript& Highlight = CS
 
     if (!Highlight.empty())
     {
-        List.push_back(std::string("<font color=\"") + ((Delta > 0)? "green" : "red") + "\">" + ValueToString(Delta) + "</font>"); // Spread-FIXME: negative value
+        List.push_back(std::string("<font color=\"") + ((Delta > 0)? "green" : "red") + "\">" + ValueToString(Delta, true) + "</font>"); // Spread-FIXME: negative value
         *pSum += Delta;
         List.push_back(ValueToString(*pSum));
     }
@@ -237,7 +229,7 @@ std::string TxToString(uint256 BlockHash, const CTransaction& tx)
     int64_t Output = tx.GetValueOut();
 
     std::string InputsContent  = makeHTMLTableRow({_("#"), _("Taken from"),  _("Address"), _("Amount")});
-    std::string OutputsContent = makeHTMLTableRow({_("#"), /*tr("Redeemed in"),*/ _("Address"), _("Amount")});
+    std::string OutputsContent = makeHTMLTableRow({_("#"), _("Redeemed in"), _("Address"), _("Amount")});
 
     if (tx.IsCoinBase())
     {
@@ -266,13 +258,18 @@ std::string TxToString(uint256 BlockHash, const CTransaction& tx)
         });
     }
 
+    uint256 TxHash = tx.GetHash();
+
     for (unsigned int i = 0; i < tx.vout.size(); i++)
     {
         const CTxOut& Out = tx.vout[i];
+        uint256 HashNext;
+        unsigned int nNext;
+        getNextIn(COutPoint(TxHash, i), HashNext, nNext);
         OutputsContent += makeHTMLTableRow(
         {
             itostr(i),
-            // "", // Redeemed in
+            (HashNext == 0)? (fAddrIndex? _("no") : _("unknown")) : "<span class=\"mono\">" + makeHRef(HashNext.GetHex()) + ":" + itostr(nNext) + "</span>",
             ScriptToString(Out.scriptPubKey, true),
             ValueToString(Out.nValue)
         });
@@ -289,7 +286,7 @@ std::string TxToString(uint256 BlockHash, const CTransaction& tx)
         {_("Output"),    ValueToString(Output)},
         {_("Fees"),      tx.IsCoinBase()? "-" : ValueToString(Input - Output)},
         {_("Timestamp"), ""},
-        {_("Hash"),      "<pre>" + tx.GetHash().GetHex() + "</pre>"},
+        {_("Hash"),      "<pre>" + TxHash.GetHex() + "</pre>"},
     };
 
     auto iter = mapBlockIndex.find(BlockHash);
@@ -335,36 +332,62 @@ std::string AddressToString(const CBitcoinAddress& Address)
 
     int64_t Sum = 0;
 
-    for (CBlockIndex* pindex = pindexGenesisBlock; pindex; pindex = pindex->pnext)
+    auto AddTx = [&](const CTransaction& tx, const CBlockHeader& block)
     {
-        CBlock block;
-        block.ReadFromDisk(pindex);
         StringList Prepend;
         Prepend.push_back("<a href=\"" + itostr(block.nHeight) + "\">" + TimeToString(block.nTime) + "</a>");
-        for(const CTransaction& tx : block.vtx)
+        TxContent += TxToRow(tx, AddressScript, Prepend, &Sum);
+    };
+
+    if (fAddrIndex)
+    {
+        std::vector<CDiskTxPos> Txs;
+        paddressmap->GetTxs(Txs, AddressScript.GetID());
+        for (const CDiskTxPos& pos : Txs)
         {
-            for (const CTxIn& In : tx.vin)
-            {
-                auto iter = PrevOuts.find(In.prevout);
-                if (iter != PrevOuts.end())
-                {
-                    TxContent += TxToRow(tx, AddressScript, Prepend, &Sum);
-                    PrevOuts.erase(iter);
-                    goto next;
-                }
-            }
-            for (unsigned int i = 0; i < tx.vout.size(); i++)
-            {
-                const CTxOut& Out = tx.vout[i];
-                if (Out.scriptPubKey == AddressScript)
-                {
-                    TxContent += TxToRow(tx, AddressScript, Prepend, &Sum);
-                    PrevOuts.insert(COutPoint(tx.GetHash(), i));
-                    break;
-                }
-            }
+            CTransaction tx;
+            CBlockHeader block;
+            ReadTransaction(pos, tx, block);
+            auto mi = mapBlockIndex.find(block.GetHash());
+            if (mi == mapBlockIndex.end())
+                continue;
+            CBlockIndex* pindex = (*mi).second;
+            if (!pindex || !pindex->IsInMainChain())
+                continue;
+            AddTx(tx, block);
         }
-        next:;
+    }
+    else
+    {
+        for (CBlockIndex* pindex = pindexGenesisBlock; pindex; pindex = pindex->pnext)
+        {
+            CBlock block;
+            block.ReadFromDisk(pindex);
+            for(const CTransaction& tx : block.vtx)
+            {
+                for (const CTxIn& In : tx.vin)
+                {
+                    auto iter = PrevOuts.find(In.prevout);
+                    if (iter != PrevOuts.end())
+                    {
+                        AddTx(tx, block);
+                        PrevOuts.erase(iter);
+                        goto next;
+                    }
+                }
+                for (unsigned int i = 0; i < tx.vout.size(); i++)
+                {
+                    const CTxOut& Out = tx.vout[i];
+                    if (Out.scriptPubKey == AddressScript)
+                    {
+                        AddTx(tx, block);
+                        PrevOuts.insert(COutPoint(tx.GetHash(), i));
+                        break;
+                    }
+                }
+            }
+            next:;
+        }
     }
     TxContent += "</table>";
 
@@ -421,7 +444,7 @@ void BlockExplorer::showEvent(QShowEvent*)
 
         if (!GetBoolArg("-txindex", false))
         {
-            QString Warning = tr("Not all transactions will be shown. To view all transactions you need to set txindex=1 in the config file (spreadcoin.conf) and rebuild transaction index with -reindex argument.");
+            QString Warning = tr("Not all transactions will be shown. To view all transactions you need to set txindex=1 in the configuration file (spreadcoin.conf).");
             QMessageBox::warning(this, "SpreadCoin Blockchain Explorer", Warning, QMessageBox::Ok);
         }
     }

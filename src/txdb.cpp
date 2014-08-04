@@ -261,3 +261,120 @@ bool CBlockTreeDB::WriteCheckpointPubKey(const string& strPubKey)
 {
     return Write(string("strCheckpointPubKey"), strPubKey);
 }
+
+CTxOut getPrevOut(const CTxIn& In)
+{
+    CTransaction tx;
+    uint256 hashBlock = 0;
+    if (GetTransaction(In.prevout.hash, tx, hashBlock, true))
+        return tx.vout[In.prevout.n];
+    return CTxOut();
+}
+
+void getNextIn(const COutPoint &Out, uint256& Hash, unsigned int& n)
+{
+    Hash = 0;
+    n = 0;
+    if (paddressmap)
+        paddressmap->ReadNextIn(Out, Hash, n);
+}
+
+// Return transaction in tx, and if it was found inside a block, its header is placed in block
+bool ReadTransaction(const CDiskTxPos &postx, CTransaction &txOut, CBlockHeader &block)
+{
+    CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
+    try
+    {
+        file >> block;
+        fseek(file, postx.nTxOffset, SEEK_CUR);
+        file >> txOut;
+    }
+    catch (std::exception &e)
+    {
+        return error("%s() : deserialize or I/O error", __PRETTY_FUNCTION__);
+    }
+    return true;
+}
+
+CAddressDB::CAddressDB(size_t nCacheSize, bool fMemory, bool fWipe) : CLevelDB(GetDataDir() / "blocks" / "addresses", nCacheSize, fMemory, fWipe)
+{
+}
+
+bool CAddressDB::AddTx(const std::vector<CTransaction>& vtx, const std::vector<std::pair<uint256, CDiskTxPos> >& vpos)
+{
+    for (unsigned int i = 0; i < vtx.size(); i++)
+    {
+        const CDiskTxPos& pos = vpos[i].second;
+        uint256 TxHash = vtx[i].GetHash();
+        for (unsigned int j = 0; j < vtx[i].vin.size(); j++)
+        {
+            const CTxIn& in = vtx[i].vin[j];
+            CScript script = getPrevOut(in).scriptPubKey;
+            if (script.empty())
+                continue;
+            CScriptID scid = script.GetID();
+            std::vector<CDiskTxPos> Txs;
+            Read(scid, Txs);
+            Txs.push_back(pos);
+            if (!Write(scid, Txs))
+                return false;
+
+            // store 'redeemed in' information for each tx output
+            std::vector<std::pair<uint256, unsigned int>> Ins;
+            Read(in.prevout.hash, Ins);
+            if (in.prevout.n >= Ins.size())
+                Ins.resize(in.prevout.n + 1);
+            Ins[in.prevout.n] = std::pair<uint256, unsigned int>(TxHash, j);
+            Write(in.prevout.hash, Ins);
+        }
+        for (const CTxOut& out : vtx[i].vout)
+        {
+            CScriptID scid = out.scriptPubKey.GetID();
+            std::vector<CDiskTxPos> Txs;
+            Read(scid, Txs);
+            Txs.push_back(pos);
+            if (!Write(scid, Txs))
+                return false;
+        }
+    }
+    return true;
+}
+
+bool CAddressDB::GetTxs(std::vector<CDiskTxPos>& Txs, const CScriptID &Address)
+{
+    return Read(Address, Txs);
+}
+
+bool CAddressDB::ReadNextIn(const COutPoint &Out, uint256& Hash, unsigned int& n)
+{
+    std::vector<std::pair<uint256, unsigned int>> Ins;
+    if (!Read(Out.hash, Ins) || Out.n >= Ins.size())
+        return false;
+    Hash = Ins[Out.n].first;
+    n = Ins[Out.n].second;
+    return true;
+}
+
+bool CAddressDB::WriteReindexing(bool fReindexing) {
+    if (fReindexing)
+        return Write('R', '1');
+    else
+        return Erase('R');
+}
+
+bool CAddressDB::ReadReindexing(bool &fReindexing) {
+    fReindexing = Exists('R');
+    return true;
+}
+
+bool CAddressDB::WriteEnable( bool fValue) {
+    return Write(std::string("Faddrindex"), fValue ? '1' : '0');
+}
+
+bool CAddressDB::ReadEnable( bool &fValue) {
+    char ch;
+    if (!Read(std::string("Faddrindex"), ch))
+        return false;
+    fValue = ch == '1';
+    return true;
+}

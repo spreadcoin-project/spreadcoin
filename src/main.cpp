@@ -53,6 +53,7 @@ bool fImporting = false;
 bool fReindex = false;
 bool fBenchmark = false;
 bool fTxIndex = false;
+bool fAddrIndex = false;
 int RequestedMasterNodeList = 0;
 unsigned int nCoinCacheSize = 5000;
 
@@ -295,6 +296,7 @@ bool CCoinsViewMemPool::HaveCoins(const uint256 &txid) {
 
 CCoinsViewCache *pcoinsTip = NULL;
 CBlockTreeDB *pblocktree = NULL;
+CAddressDB *paddressmap = NULL;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -1990,6 +1992,10 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
         if (!pblocktree->WriteTxIndex(vPos))
             return state.Abort(_("Failed to write transaction index"));
 
+    if (fAddrIndex)
+        if (!paddressmap->AddTx(vtx, vPos))
+            return state.Abort(_("Failed to write address index"));
+
     // add this block to the view's block chain
     assert(view.SetBestBlock(pindex));
 
@@ -2971,6 +2977,10 @@ bool static LoadBlockIndexDB()
     pblocktree->ReadFlag("txindex", fTxIndex);
     printf("LoadBlockIndexDB(): transaction index %s\n", fTxIndex ? "enabled" : "disabled");
 
+    // Check whether we have a address index
+    paddressmap->ReadEnable(fAddrIndex);
+    printf("LoadBlockIndexDB(): address index %s\n", fAddrIndex ? "enabled" : "disabled");
+
     // Load hashBestChain pointer to end of best chain
     pindexBest = pcoinsTip->GetBestBlock();
     if (pindexBest == NULL)
@@ -3126,6 +3136,9 @@ bool InitBlockIndex() {
     // Use the provided setting for -txindex in the new database
     fTxIndex = GetBoolArg("-txindex", false);
     pblocktree->WriteFlag("txindex", fTxIndex);
+    // Use the provided setting for -addrindex in the new database
+    fAddrIndex = GetBoolArg("-addrindex", false);
+    paddressmap->WriteEnable(fAddrIndex);
     printf("Initializing databases...\n");
 
     // Only add the genesis block if not reindexing (in which case we reuse the one already on disk)
