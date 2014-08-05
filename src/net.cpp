@@ -1197,11 +1197,7 @@ void MapPort(bool)
 // The first name is used as information source for addrman.
 // The second name should resolve to a list of seed addresses.
 static const char *strMainNetDNSSeed[][2] = {
-    // Spread-FIXME: Add seed nodes
-/*
-    {"darkcoin.io", "dnsseed.darkcoin.io"},
-    {"darkcoin.qa", "dnsseed.darkcoin.qa"},
-*/
+    {"spreadcoin.net", "dnsseed.spreadcoin.net"},
     {NULL, NULL}
 };
 
@@ -1263,7 +1259,7 @@ void ThreadDNSAddressSeed()
 unsigned int pnSeed[] =
 {
     // Spread-FIXME: Add seed nodes
- //   0x3210ce66, 0x3213747b, 0x1717ba83, 0x3210ce66, 0x3213747b, 0x1715cc22, 0xbc8e2769, 0x36f8e397, 0x2a793a5b, 0x3251c027, 0x05fe6003, 0xaf73c92c, 0xd035bf02, 0xc06f4182, 0xa2f32110
+    0x17EF007C
 };
 
 void DumpAddresses()
