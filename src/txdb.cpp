@@ -320,14 +320,14 @@ bool CAddressDB::AddTx(const std::vector<CTransaction>& vtx, const std::vector<s
                 return false;
 
             // store 'redeemed in' information for each tx output
-            std::vector<std::pair<uint256, unsigned int>> Ins;
+            std::vector<std::pair<uint256, unsigned int> > Ins;
             Read(in.prevout.hash, Ins);
             if (in.prevout.n >= Ins.size())
                 Ins.resize(in.prevout.n + 1);
             Ins[in.prevout.n] = std::pair<uint256, unsigned int>(TxHash, j);
             Write(in.prevout.hash, Ins);
         }
-        for (const CTxOut& out : vtx[i].vout)
+        BOOST_FOREACH (const CTxOut& out, vtx[i].vout)
         {
             CScriptID scid = out.scriptPubKey.GetID();
             std::vector<CDiskTxPos> Txs;
@@ -347,7 +347,7 @@ bool CAddressDB::GetTxs(std::vector<CDiskTxPos>& Txs, const CScriptID &Address)
 
 bool CAddressDB::ReadNextIn(const COutPoint &Out, uint256& Hash, unsigned int& n)
 {
-    std::vector<std::pair<uint256, unsigned int>> Ins;
+    std::vector<std::pair<uint256, unsigned int> > Ins;
     if (!Read(Out.hash, Ins) || Out.n >= Ins.size())
         return false;
     Hash = Ins[Out.n].first;

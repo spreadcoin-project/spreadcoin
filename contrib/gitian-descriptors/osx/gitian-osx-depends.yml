@@ -72,7 +72,7 @@ script: |
   mkdir -p SDKs
   tar -C SDKs -xf ${SOURCES_PATH}/MacOSX10.7.sdk.tar.gz
 
-  tar xf /home/ubuntu/build/osx-native-depends-r3.tar.gz
+  tar xf $HOME/build/osx-native-depends-r3.tar.gz
 
   # bdb
   SOURCE_FILE=${SOURCES_PATH}/db-4.8.30.NC.tar.gz

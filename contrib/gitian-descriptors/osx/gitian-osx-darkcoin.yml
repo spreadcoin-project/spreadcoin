@@ -60,14 +60,14 @@ script: |
   
   sed 's/mmacosx-version-min\=10.5/mmacosx-version-min=10.6/' -i bitcoin-qt.pro
   sed 's/10.5/10.7/' -i bitcoin-qt.pro
-  sed 's/\/Developer\//\/home\/ubuntu\/build\/osx-cross-depends\//' -i bitcoin-qt.pro
+  sed "s /Developer/ $HOME/build/osx-cross-depends/ " -i bitcoin-qt.pro
   sed 's/10.5/10.7/' -i bitcoin-qt.pro
   sed 's/arch i386/arch x86_64/' -i bitcoin-qt.pro
   sed 's/CXX $(MAKE)/CXX AR=x86_64-apple-darwin11-ar $(MAKE)/' -i bitcoin-qt.pro
 
   qmake -spec macx-clang-linux MINIUPNPC_LIB_PATH=$PREFIX/lib MINIUPNPC_INCLUDE_PATH=$PREFIX/include BDB_LIB_PATH=$PREFIX/lib BDB_INCLUDE_PATH=$PREFIX/include BOOST_LIB_PATH=$PREFIX/lib BOOST_INCLUDE_PATH=$PREFIX/include BOOST_LIB_SUFFIX=-mt-s OPENSSL_LIB_PATH=$PREFIX/lib OPENSSL_INCLUDE_PATH=$PREFIX/include QRENCODE_LIB_PATH=$PREFIX/lib QRENCODE_INCLUDE_PATH=$PREFIX/include USE_QRCODE=1 INCLUDEPATH=$PREFIX/include DEFINES=BOOST_THREAD_USE_LIB QMAKE_LRELEASE=lrelease USE_BUILD_INFO=1 USE_SSE2=1 USE_UPNP=1 RELEASE=1
   make TARGET_OS=Darwin
-  INSTALLNAMETOOL=/home/ubuntu/build/osx-cross-depends/native-prefix/bin/x86_64-apple-darwin11-install_name_tool  OTOOL=/home/ubuntu/build/osx-cross-depends/native-prefix/bin/x86_64-apple-darwin11-otool STRIP=/home/ubuntu/build/osx-cross-depends/native-prefix/bin/x86_64-apple-darwin11-strip ./contrib/macdeploy/macdeployqtplus SpreadCoin-Qt.app -add-qt-tr da,de,es,hu,ru,uk,zh_CN,zh_TW -verbose 2
+  INSTALLNAMETOOL=$HOME/build/osx-cross-depends/native-prefix/bin/x86_64-apple-darwin11-install_name_tool  OTOOL=$HOME/build/osx-cross-depends/native-prefix/bin/x86_64-apple-darwin11-otool STRIP=$HOME/build/osx-cross-depends/native-prefix/bin/x86_64-apple-darwin11-strip ./contrib/macdeploy/macdeployqtplus SpreadCoin-Qt.app -add-qt-tr da,de,es,hu,ru,uk,zh_CN,zh_TW -verbose 2
 
 
   export LD_PRELOAD=/usr/lib/faketime/libfaketime.so.1
@@ -80,4 +80,4 @@ script: |
   /usr/bin/install -c contrib/macdeploy/DS_Store dist/.DS_Store
   cd dist; ln -s /Applications Applications; cd ..
   genisoimage -no-cache-inodes -l -probe -V "SpreadCoin-Qt" -no-pad -r -apple -o SpreadCoin-Qt.dmg dist
-  dmg dmg SpreadCoin-Qt.dmg /home/ubuntu/out/SpreadCoin-Qt.dmg
+  dmg dmg SpreadCoin-Qt.dmg $HOME/out/SpreadCoin-Qt.dmg
