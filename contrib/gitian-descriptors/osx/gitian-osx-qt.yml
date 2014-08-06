@@ -70,10 +70,10 @@ script: |
   mkdir -p SDKs
   tar -C SDKs -xf ${SOURCES_PATH}/MacOSX10.7.sdk.tar.gz
 
-  tar xf /home/ubuntu/build/osx-native-depends-r3.tar.gz
+  tar xf $HOME/build/osx-native-depends-r3.tar.gz
 
   export PATH=`pwd`/native-prefix/bin:$PATH
-  tar xf /home/ubuntu/build/osx-depends-r4.tar.gz
+  tar xf $HOME/build/osx-depends-r4.tar.gz
 
   SOURCE_FILE=${SOURCES_PATH}/qt-everywhere-opensource-src-5.2.1.tar.gz
   BUILD_DIR=${BUILD_BASE}/qt-everywhere-opensource-src-5.2.1
