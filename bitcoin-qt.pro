@@ -23,8 +23,6 @@ OBJECTS_DIR = build
 MOC_DIR = build
 UI_DIR = build
 
-QMAKE_CXXFLAGS *= -std=gnu++0x -Wno-literal-suffix
-
 # use: qmake "RELEASE=1"
 contains(RELEASE, 1) {
     # Mac: compile for maximum compatibility (10.5, 32-bit)
