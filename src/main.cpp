@@ -1325,11 +1325,14 @@ uint256 static GetOrphanRoot(const CBlockHeader* pblock)
     return pblock->GetHash();
 }
 
-static int g_RewardHalvingPeriod = 2000000;
+static const int g_FirstHardforkBlock = 2200;
+static const int g_RewardHalvingPeriod = 2000000;
 
 int64 static GetBlockValue(int, int nHeight, int64 nFees)
 {
     int64_t nSubsidy = 50 * COIN * 4 / 3;
+    if (nHeight > g_FirstHardforkBlock)
+        nSubsidy /= 10;
 
     // Subsidy is cut in half every g_RewardHalvingPeriod blocks which will occur approximately every 4 years.
     int halvings = nHeight / g_RewardHalvingPeriod;
@@ -1355,9 +1358,9 @@ static uint32_t invertCompact(uint32_t nBits)
 
 unsigned int static GetNextWorkRequired(const CBlockIndex* pLastBlock, const CBlockHeader *)
 {
-    const int nTargetSpacing = 600; // SpreadCoin: 10 minutes
-    const int nInterval = 24*6;
-    const int nTargetTimespan = nInterval*nTargetSpacing;
+    const int nTargetSpacing = (pLastBlock->nHeight > g_FirstHardforkBlock)? 60 : 600; // SpreadCoin: 1 minute after block 2200
+    const int nTargetTimespan = 24*60*60; // SpreadCoin: One day
+    const int nInterval = nTargetTimespan/nTargetSpacing;
 
     if (pLastBlock->nHeight <= nInterval + 2)
         return bnProofOfWorkLimit.GetCompact();
