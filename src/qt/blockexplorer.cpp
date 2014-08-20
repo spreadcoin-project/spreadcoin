@@ -37,12 +37,12 @@ static int64_t getTxIn(const CTransaction& tx)
 static std::string ValueToString(int64 nValue, bool AllowNegative = false)
 {
     if (nValue < 0 && !AllowNegative)
-        return _("unknown");
+        return "<span class='mono'>" + _("unknown") + "</span>";
 
     QString Str = BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, nValue);
     if (AllowNegative && nValue > 0)
         Str = '+' + Str;
-    return Str.toUtf8().data();
+    return std::string("<span class='mono'>") + Str.toUtf8().data() + "</span>";
 }
 
 static std::string ScriptToString(const CScript& Script, bool Long = false, bool Highlight = false)
@@ -149,7 +149,7 @@ static std::string TxToRow(const CTransaction& tx, const CScript& Highlight = CS
 
     if (!Highlight.empty())
     {
-        List[n++] = std::string("<font color=\"") + ((Delta > 0)? "green" : "red") + "\">" + ValueToString(Delta, true) + "</font>"; // Spread-FIXME: negative value
+        List[n++] = std::string("<font color=\"") + ((Delta > 0)? "green" : "red") + "\">" + ValueToString(Delta, true) + "</font>";
         *pSum += Delta;
         List[n++] = ValueToString(*pSum);
         return makeHTMLTableRow(List, n);
@@ -343,7 +343,9 @@ std::string AddressToString(const CBitcoinAddress& Address)
 
     int64_t Sum = 0;
 
-    if (fAddrIndex)
+    if (!fAddrIndex)
+        return ""; // it will take too long to find transactions by address
+    else
     {
         std::vector<CDiskTxPos> Txs;
         paddressmap->GetTxs(Txs, AddressScript.GetID());
@@ -360,40 +362,6 @@ std::string AddressToString(const CBitcoinAddress& Address)
                 continue;
             std::string Prepend = "<a href=\"" + itostr(block.nHeight) + "\">" + TimeToString(block.nTime) + "</a>";
             TxContent += TxToRow(tx, AddressScript, Prepend, &Sum);
-        }
-    }
-    else
-    {
-        for (CBlockIndex* pindex = pindexGenesisBlock; pindex; pindex = pindex->pnext)
-        {
-            CBlock block;
-            block.ReadFromDisk(pindex);
-            BOOST_FOREACH(const CTransaction& tx, block.vtx)
-            {
-                BOOST_FOREACH (const CTxIn& In, tx.vin)
-                {
-                    std::set<COutPoint>::iterator iter = PrevOuts.find(In.prevout);
-                    if (iter != PrevOuts.end())
-                    {
-                        std::string Prepend = "<a href=\"" + itostr(block.nHeight) + "\">" + TimeToString(block.nTime) + "</a>";
-                        TxContent += TxToRow(tx, AddressScript, Prepend, &Sum);
-                        PrevOuts.erase(iter);
-                        goto next;
-                    }
-                }
-                for (unsigned int i = 0; i < tx.vout.size(); i++)
-                {
-                    const CTxOut& Out = tx.vout[i];
-                    if (Out.scriptPubKey == AddressScript)
-                    {
-                        std::string Prepend = "<a href=\"" + itostr(block.nHeight) + "\">" + TimeToString(block.nTime) + "</a>";
-                        TxContent += TxToRow(tx, AddressScript, Prepend, &Sum);
-                        PrevOuts.insert(COutPoint(tx.GetHash(), i));
-                        break;
-                    }
-                }
-            }
-            next:;
         }
     }
     TxContent += "</table>";
@@ -524,7 +492,7 @@ void BlockExplorer::setBlock(CBlockIndex* pBlock)
 
 void BlockExplorer::setContent(const std::string& Content)
 {
-    QString CSS = "a, .mono { font-family: \"monospace\" }\n h1, h2 { white-space:nowrap; }";
+    QString CSS = "a, .mono { font-family: \"monospace\" }\n h1, h2 { white-space:nowrap; }\n a { text-decoration: none; }";
     QString FullContent = "<html><head><style type=\"text/css\">" + CSS + "</style></head>" + "<body>" + Content.c_str() + "</body></html>";
     ui->content->setText(FullContent);
 }
