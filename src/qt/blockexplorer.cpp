@@ -460,7 +460,10 @@ bool BlockExplorer::switchTo(const QString& query)
     Address.SetString(query.toUtf8().constData());
     if (Address.IsValid())
     {
-        setContent(AddressToString(Address));
+        std::string Content = AddressToString(Address);
+        if (Content.empty())
+            return false;
+        setContent(Content);
         return true;
     }
 
