@@ -1118,15 +1118,15 @@ public:
         nVersion = nVersionIn;
     }
 
-    const uint8_t* begin() const
-    {
-        return vch;
-    }
+          uint8_t* begin()          { return vch; }
+    const uint8_t* begin() const    { return vch; }
+          uint8_t* end()            { return vch + nWritePos; }
+    const uint8_t* end() const      { return vch + nWritePos; }
 
-    const uint8_t* end() const
-    {
-        return vch + nWritePos;
-    }
+    const uint8_t& operator[](int i) const    { return vch[i]; }
+          uint8_t& operator[](int i)          { return vch[i]; }
+
+    size_t size() const    { return end() - begin(); }
 
     //
     // Stream subset

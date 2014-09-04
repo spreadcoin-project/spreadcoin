@@ -226,6 +226,8 @@ CBlockIndex * InsertBlockIndex(uint256 hash);
 bool VerifySignature(const CCoins& txFrom, const CTransaction& txTo, unsigned int nIn, unsigned int flags, int nHashType);
 /** Abort with a message */
 bool AbortNode(const std::string &msg);
+/** Get hardfork blocks */
+unsigned int getFirstHardforkBlock(); // 10 -> 1 minute blocks
 
 
 
@@ -1439,8 +1441,10 @@ public:
         return (nBits == 0);
     }
 
-    //special has includes voting info in the hash
+    //special hash includes voting info in the hash
+#ifdef ENABLE_DARKSEND_FEATURES
     uint256 GetSpecialHash() const;
+#endif // ENABLE_DARKSEND_FEATURES
     uint256 GetHash() const;
 
     int64 GetBlockTime() const
