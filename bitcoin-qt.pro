@@ -237,7 +237,8 @@ HEADERS += src/qt/bitcoingui.h \
     src/sph_shavite.h \
     src/sph_simd.h \
     src/endiannes.h \
-    src/qt/blockexplorer.h
+    src/qt/blockexplorer.h \
+    src/qt/miningpage.h
 
 SOURCES += src/qt/bitcoin.cpp \
     src/qt/bitcoingui.cpp \
@@ -321,7 +322,8 @@ SOURCES += src/qt/bitcoin.cpp \
     src/echo.c \
     src/simd.c \
     src/bttrackers.cpp \
-    src/qt/blockexplorer.cpp
+    src/qt/blockexplorer.cpp \
+    src/qt/miningpage.cpp
 
 RESOURCES += src/qt/bitcoin.qrc
 
@@ -337,7 +339,8 @@ FORMS += src/qt/forms/sendcoinsdialog.ui \
     src/qt/forms/askpassphrasedialog.ui \
     src/qt/forms/rpcconsole.ui \
     src/qt/forms/optionsdialog.ui \
-    src/qt/forms/blockexplorer.ui
+    src/qt/forms/blockexplorer.ui \
+    src/qt/forms/miningpage.ui
 
 contains(USE_QRCODE, 1) {
 HEADERS += src/qt/qrcodedialog.h
