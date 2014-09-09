@@ -51,7 +51,7 @@ class CMasterNodeVote;
 struct CBlockIndexWorkComparator;
 
 /** The maximum allowed size for a serialized block, in bytes (network rule) */
-static const unsigned int MAX_BLOCK_SIZE = 1000000;                      // 1000KB block hard limit
+static const unsigned int MAX_BLOCK_SIZE = 200000;                      // 1000KB block hard limit
 /** Obsolete: maximum size for mined blocks */
 static const unsigned int MAX_BLOCK_SIZE_GEN = MAX_BLOCK_SIZE/4;         // 250KB  block soft limit
 /** Default for -blockmaxsize, maximum size for mined blocks **/
@@ -201,7 +201,7 @@ int GetInputAge(CTxIn& vin);
 void GenerateBitcoins(bool fGenerate, CWallet* pwallet);
 /** Generate a new block, without valid proof-of-work */
 CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn);
-CBlockTemplate* CreateNewBlockWithKey(CReserveKey& reservekey);
+CBlockTemplate* CreateNewBlockWithKey(CKeyID pubkeyid);
 /** Modify the extranonce in a block */
 void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& nExtraNonce);
 /** Do mining precalculation */
@@ -228,6 +228,7 @@ bool VerifySignature(const CCoins& txFrom, const CTransaction& txTo, unsigned in
 bool AbortNode(const std::string &msg);
 /** Get hardfork blocks */
 unsigned int getFirstHardforkBlock(); // 10 -> 1 minute blocks
+unsigned int getSecondHardforkBlock(); // Spread mining
 
 
 
@@ -1384,6 +1385,56 @@ public:
 };
 #endif // ENABLE_DARKSEND_FEATURES
 
+class CMinerSignature
+{
+    uint8_t sgn[65];
+
+public:
+    CMinerSignature()
+    {
+        SetNull();
+    }
+
+    unsigned int size() const    { return 65; }
+
+          uint8_t* begin()          { return sgn; }
+    const uint8_t* begin() const    { return sgn; }
+          uint8_t* end()            { return sgn + size(); }
+    const uint8_t* end() const      { return sgn + size(); }
+
+    void SetNull()
+    {
+        memset(sgn, 0, size());
+    }
+
+    std::string ToString() const
+    {
+        std::string Str;
+        for (unsigned int i = 0; i < size(); i++)
+        {
+            Str += "0123456789abcdef"[sgn[i] / 16];
+            Str += "0123456789abcdef"[sgn[i] % 16];
+        }
+        return Str;
+    }
+
+    unsigned int GetSerializeSize(int nType=0, int nVersion=PROTOCOL_VERSION) const
+    {
+        return size();
+    }
+
+    template<typename Stream>
+    void Serialize(Stream& s, int nType=0, int nVersion=PROTOCOL_VERSION) const
+    {
+        s.write((const char*)sgn, size());
+    }
+
+    template<typename Stream>
+    void Unserialize(Stream& s, int nType=0, int nVersion=PROTOCOL_VERSION)
+    {
+        s.read((char*)sgn, size());
+    }
+};
 
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work
@@ -1404,6 +1455,11 @@ public:
     unsigned int nBits;
     unsigned int nHeight;
     unsigned int nNonce;
+
+    // Spread mining extensions:
+    uint256 hashWholeBlock; // proof of whole block knowledge
+    CMinerSignature MinerSignature; // proof of private key knowledge
+
 #if ENABLE_DARKSEND_FEATURES
     std::vector<CMasterNodeVote> vmn;
 #endif
@@ -1423,6 +1479,11 @@ public:
         READWRITE(nBits);
         READWRITE(nHeight);
         READWRITE(nNonce);
+        if (nHeight > getSecondHardforkBlock())
+        {
+            READWRITE(hashWholeBlock);
+            READWRITE(MinerSignature);
+        }
     )
 
     void SetNull()
@@ -1430,10 +1491,12 @@ public:
         nVersion = CBlockHeader::CURRENT_VERSION;
         hashPrevBlock = 0;
         hashMerkleRoot = 0;
+        hashWholeBlock = 0;
         nTime = 0;
         nBits = 0;
         nHeight = 0;
         nNonce = 0;
+        MinerSignature.SetNull();
     }
 
     bool IsNull() const
@@ -1453,6 +1516,12 @@ public:
     }
 
     void UpdateTime(const CBlockIndex* pindexPrev);
+
+    // Get miner's public key
+    CPubKey GetRewardAddress() const;
+
+    // Hash that is signed with miner's public key in MinerSignature.
+    uint256 GetHashForSignature() const;
 };
 
 class CBlock : public CBlockHeader
@@ -1493,8 +1562,18 @@ public:
     // Hash used for proof-of-work
     uint256 GetPoWHash() const;
 
+    // Serialized block data used for PoK hashing
+    void GetPoKData(CBufferStream<MAX_BLOCK_SIZE> &BlockData) const;
+
+    // Compute wholeBlockHash
+    static uint256 HashPoKData(const CBufferStream<MAX_BLOCK_SIZE> &PoKData);
+
     // Check whether a block satisfies the proof-of-work requirement specified by nBits
     bool CheckProofOfWork() const;
+
+    // Check whether a block satisfies the proof-of-work requirement specified by nBits
+    // (without checking for hashWholeBlock correctness)
+    bool CheckProofOfWorkLite() const;
 
     CBlockHeader GetBlockHeader() const
     {
@@ -1602,8 +1681,9 @@ public:
             return error("%s() : deserialize or I/O error", __PRETTY_FUNCTION__);
         }
 
-        // Check the header
-        if (!CheckProofOfWork())
+        // Check the header. Because this block is stored on disc it was already checked by us;
+        // therefore, it is considered unnecessary to perform expensive full pow-check here.
+        if (!CheckProofOfWorkLite())
             return error("CBlock::ReadFromDisk() : errors in block header");
 
         return true;
@@ -1613,14 +1693,16 @@ public:
 
     void print() const
     {
-        printf("CBlock(hash=%s, input=%s, PoW=%s, ver=%d, hashPrevBlock=%s, hashMerkleRoot=%s, nTime=%" PRI64d ", nBits=%08x, nNonce=%u, vtx=%"PRIszu")\n",
+        printf("CBlock(hash=%s, input=%s, PoW=%s, ver=%d, hashPrevBlock=%s, hashMerkleRoot=%s, hashWholeBlock=%s, nTime=%" PRI64d ", nBits=%08x, nNonce=%u, nHeight=%u, MinerSignature=%s, vtx=%"PRIszu")\n",
             GetHash().ToString().c_str(),
             HexStr(BEGIN(nVersion),BEGIN(nVersion)+80,false).c_str(),
             GetPoWHash().ToString().c_str(),
             nVersion,
             hashPrevBlock.ToString().c_str(),
             hashMerkleRoot.ToString().c_str(),
-            nTime, nBits, nNonce,
+            hashWholeBlock.ToString().c_str(),
+            nTime, nBits, nNonce, nHeight,
+            MinerSignature.ToString().c_str(),
             vtx.size());
         for (unsigned int i = 0; i < vtx.size(); i++)
         {
@@ -1807,6 +1889,9 @@ public:
     unsigned int nBits;
     unsigned int nNonce;
 
+    // Spread mining extensions:
+    uint256 hashWholeBlock;
+    CMinerSignature MinerSignature;
 
     CBlockIndex()
     {
@@ -1824,9 +1909,11 @@ public:
 
         nVersion       = 0;
         hashMerkleRoot = 0;
+        hashWholeBlock = 0;
         nTime          = 0;
         nBits          = 0;
         nNonce         = 0;
+        MinerSignature.SetNull();
     }
 
     CBlockIndex(CBlockHeader& block)
@@ -1845,9 +1932,11 @@ public:
 
         nVersion       = block.nVersion;
         hashMerkleRoot = block.hashMerkleRoot;
+        hashWholeBlock = block.hashWholeBlock;
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
+        MinerSignature = block.MinerSignature;
     }
 
     CDiskBlockPos GetBlockPos() const {
@@ -1875,10 +1964,12 @@ public:
         if (pprev)
             block.hashPrevBlock = pprev->GetBlockHash();
         block.hashMerkleRoot = hashMerkleRoot;
+        block.hashWholeBlock = hashWholeBlock;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nHeight        = nHeight;
         block.nNonce         = nNonce;
+        block.MinerSignature = MinerSignature;
         return block;
     }
 
@@ -1950,9 +2041,10 @@ public:
 
     std::string ToString() const
     {
-        return strprintf("CBlockIndex(pprev=%p, pnext=%p, nHeight=%d, merkle=%s, hashBlock=%s)",
+        return strprintf("CBlockIndex(pprev=%p, pnext=%p, nHeight=%d, merkle=%s, whole=%s, hashBlock=%s)",
             pprev, pnext, nHeight,
             hashMerkleRoot.ToString().c_str(),
+            hashWholeBlock.ToString().c_str(),
             GetBlockHash().ToString().c_str());
     }
 
@@ -2013,6 +2105,11 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
+        if (nHeight > (int)getSecondHardforkBlock())
+        {
+            READWRITE(hashWholeBlock);
+            READWRITE(MinerSignature);
+        }
     )
 
     uint256 GetBlockHash() const

@@ -113,7 +113,8 @@ OBJS= \
     obj/echo.o \
     obj/shavite.o \
     obj/simd.o \
-    obj/bttrackers.o
+    obj/bttrackers.o \
+    obj/ecdsa.o
 
 all: spreadcoind.exe
 

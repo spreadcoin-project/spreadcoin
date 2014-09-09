@@ -9,9 +9,6 @@
 #include "key.h"
 
 
-// anonymous namespace with local implementation code (OpenSSL interaction)
-namespace {
-
 // Generate a private key from just the secret parameter
 int EC_KEY_regenerate_key(EC_KEY *eckey, BIGNUM *priv_key)
 {
@@ -48,6 +45,9 @@ err:
 
     return(ok);
 }
+
+// anonymous namespace with local implementation code (OpenSSL interaction)
+namespace {
 
 // Perform ECDSA key recovery (see SEC1 4.1.6) for curves over (mod p)-fields
 // recid selects which key is recovered

@@ -207,8 +207,12 @@ Value getworkex(const Array& params, bool fHelp)
             CBlockIndex* pindexPrevNew = pindexBest;
             nStart = GetTime();
 
+            // Spread-FIXME: implement PRC mining
+            CPubKey pubkey;
+            pMiningKey->GetReservedKey(pubkey);
+
             // Create new block
-            pblocktemplate = CreateNewBlockWithKey(*pMiningKey);
+            pblocktemplate = CreateNewBlockWithKey(pubkey.GetID());
             if (!pblocktemplate)
                 throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
             vNewBlockTemplate.push_back(pblocktemplate);
@@ -346,8 +350,12 @@ Value getwork(const Array& params, bool fHelp)
             CBlockIndex* pindexPrevNew = pindexBest;
             nStart = GetTime();
 
+            // Spread-FIXME: implement PRC mining
+            CPubKey pubkey;
+            pMiningKey->GetReservedKey(pubkey);
+
             // Create new block
-            pblocktemplate = CreateNewBlockWithKey(*pMiningKey);
+            pblocktemplate = CreateNewBlockWithKey(pubkey.GetID());
             if (!pblocktemplate)
                 throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
             vNewBlockTemplate.push_back(pblocktemplate);

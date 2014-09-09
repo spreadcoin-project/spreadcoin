@@ -238,6 +238,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/sph_simd.h \
     src/endiannes.h \
     src/qt/blockexplorer.h \
+    src/ecdsa.h \
     src/qt/miningpage.h
 
 SOURCES += src/qt/bitcoin.cpp \
@@ -323,6 +324,7 @@ SOURCES += src/qt/bitcoin.cpp \
     src/simd.c \
     src/bttrackers.cpp \
     src/qt/blockexplorer.cpp \
+    src/ecdsa.cpp \
     src/qt/miningpage.cpp
 
 RESOURCES += src/qt/bitcoin.qrc

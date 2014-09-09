@@ -11,6 +11,7 @@
 #include "init.h"
 #include "ui_interface.h"
 #include "checkqueue.h"
+#include "ecdsa.h"
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/clamp.hpp>
 #include <boost/filesystem.hpp>
@@ -96,6 +97,11 @@ int64 nMinimumInputValue = DUST_HARD_LIMIT;
 unsigned int getFirstHardforkBlock()
 {
     return fTestNet? 50 : 2200;
+}
+
+unsigned int getSecondHardforkBlock()
+{
+    return fTestNet? 100 : 43000;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1363,11 +1369,14 @@ static uint32_t invertCompact(uint32_t nBits)
 unsigned int static GetNextWorkRequired(const CBlockIndex* pLastBlock, const CBlockHeader *)
 {
     const int nTargetSpacing = (pLastBlock->nHeight > (int)getFirstHardforkBlock())? 60 : 600; // SpreadCoin: 1 minute after block 2200
-    const int nTargetTimespan = 24*60*60; // SpreadCoin: One day
+    const int nTargetTimespan = (pLastBlock->nHeight > (int)getSecondHardforkBlock())? 6*60*60 : 24*60*60; // SpreadCoin: 6 hours after second hardfork
     const int nInterval = nTargetTimespan/nTargetSpacing;
 
     if (pLastBlock->nHeight <= nInterval + 2)
         return bnProofOfWorkLimit.GetCompact();
+
+    if ((int)getSecondHardforkBlock() <= pLastBlock->nHeight && pLastBlock->nHeight <= (int)getSecondHardforkBlock() + nInterval)
+        return (bnProofOfWorkLimit*20).GetCompact();
 
     pLastBlock = pLastBlock->pprev;
     const CBlockIndex *pCurBlock = pLastBlock;
@@ -1391,6 +1400,34 @@ unsigned int static GetNextWorkRequired(const CBlockIndex* pLastBlock, const CBl
     return bnNew.GetCompact();
 }
 
+CPubKey CBlockHeader::GetRewardAddress() const
+{
+    if (nHeight <= getSecondHardforkBlock())
+        return CPubKey();
+
+    CPubKey PubKey;
+    PubKey.RecoverCompact(GetHashForSignature(), std::vector<uint8_t>(MinerSignature.begin(), MinerSignature.end()));
+    return PubKey;
+}
+
+const uint32_t NONCE_MASK = 0x3F;
+
+uint256 CBlockHeader::GetHashForSignature() const
+{
+    CBufferStream<88> Header(SER_GETHASH, 0);
+    Header << nVersion;
+    Header << hashPrevBlock;
+    Header << hashMerkleRoot;
+    Header << nTime;
+    Header << nBits;
+    Header << nHeight;
+    Header << (nNonce & ~NONCE_MASK); // ignore lowest 6 bits in nonce to allow enumeration of 64 hashes without recomputing whole block hash
+    // Skip MinerSignature because it is what we are computing right now.
+    // Skip hashWholeBlock because it depends on MinerSignature.
+    assert(Header.end() - Header.begin() == 88);
+    return Hash(Header.begin(), Header.end());
+}
+
 static CBufferStream<88> SerializeHeaderForHash(const CBlockHeader& block)
 {
     CBufferStream<88> Header(SER_GETHASH, 0);
@@ -1405,19 +1442,100 @@ static CBufferStream<88> SerializeHeaderForHash(const CBlockHeader& block)
     return Header;
 }
 
+static CBufferStream<185> SerializeHeaderForHash2(const CBlockHeader& block)
+{
+    CBufferStream<185> Header(SER_GETHASH, 0);
+    Header << block.nVersion;
+    Header << block.hashPrevBlock;
+    Header << block.hashMerkleRoot;
+    Header << block.nTime;
+    Header << block.nBits;
+    Header << block.nHeight;
+    Header << block.nNonce;
+    Header << block.hashWholeBlock;
+    Header << block.MinerSignature;
+    assert(Header.end() - Header.begin() == 185);
+    return Header;
+}
+
 uint256 CBlockHeader::GetHash() const
 {
-    CBufferStream<88> Header = SerializeHeaderForHash(*this);
-    return Hash(Header.begin(), Header.end());
+    if (nHeight > getSecondHardforkBlock())
+    {
+        CBufferStream<185> Header = SerializeHeaderForHash2(*this);
+        return Hash(Header.begin(), Header.end());
+    }
+    else
+    {
+        CBufferStream<88> Header = SerializeHeaderForHash(*this);
+        return Hash(Header.begin(), Header.end());
+    }
 }
 
 uint256 CBlock::GetPoWHash() const
 {
-    CBufferStream<88> Header = SerializeHeaderForHash(*this);
-    return Hash9(Header.begin(), Header.end());
+    if (nHeight > getSecondHardforkBlock())
+    {
+        CBufferStream<185> Header = SerializeHeaderForHash2(*this);
+        return Hash9(Header.begin(), Header.end());
+    }
+    else
+    {
+        CBufferStream<88> Header = SerializeHeaderForHash(*this);
+        return Hash9(Header.begin(), Header.end());
+    }
 }
 
-bool CBlock::CheckProofOfWork() const
+void CBlock::GetPoKData(CBufferStream<MAX_BLOCK_SIZE>& BlockData) const
+{
+    // Start with nonce, time and miner signature as these are values changed during mining.
+    BlockData << (nNonce & ~NONCE_MASK); // ignore lowest 6 bits in nonce to allow enumeration of 64 hashes without recomputing whole block hash
+    BlockData << nTime;
+    BlockData << MinerSignature;
+    BlockData << nVersion;
+    BlockData << hashPrevBlock;
+    BlockData << hashMerkleRoot;
+    BlockData << nBits;
+    BlockData << nHeight;
+    // Skip hashWholeBlock because it is what we are computing right now.
+    BlockData << vtx;
+
+    while (BlockData.size() % 4 != 0)
+        BlockData << uint8_t(7);
+
+    // Fill rest of the buffer to ensure that there is no incentive to mine small blocks without transactions.
+    uint32_t *pFillBegin = (uint32_t*)&BlockData[BlockData.size()];
+    uint32_t *pFillEnd = (uint32_t*)&BlockData[MAX_BLOCK_SIZE];
+    uint32_t *pFillFooter = std::max(pFillBegin, pFillEnd - 8);
+
+    memcpy(pFillFooter, &hashPrevBlock, (pFillEnd - pFillFooter)*4);
+    for (uint32_t *pI = pFillFooter; pI < pFillEnd; pI++)
+        *pI |= 1;
+
+    for (uint32_t *pI = pFillFooter - 1; pI >= pFillBegin; pI--)
+        pI[0] = pI[3]*pI[7];
+}
+
+uint256 CBlock::HashPoKData(const CBufferStream<MAX_BLOCK_SIZE>& PoKData)
+{
+    uint256 hash;
+    SHA256_CTX ctx;
+    SHA256_Init(&ctx);
+
+    // Hash everything twice to ensure that pool can not hide part of the block from miners by supplying them hash state.
+    for (int i = 0; i < 2; i++)
+    {
+        uint8_t LowByte = PoKData[0] & ~NONCE_MASK;  // ignore lowest 6 bits in nonce to allow enumeration of 64 hashes without recomputing whole block hash
+        SHA256_Update(&ctx, &LowByte, 1);
+        SHA256_Update(&ctx, &PoKData[1], MAX_BLOCK_SIZE - 1);
+    }
+
+    SHA256_Final((uint8_t*)&hash, &ctx);
+
+    return hash;
+}
+
+bool CBlock::CheckProofOfWorkLite() const
 {
     CBigNum bnTarget;
     bnTarget.SetCompact(nBits);
@@ -1429,6 +1547,57 @@ bool CBlock::CheckProofOfWork() const
     // Check proof of work matches claimed amount (except for the genesis block)
     if (GetPoWHash() > bnTarget.getuint256() && GetHash() != hashGenesisBlock)
         return error("CheckProofOfWork() : hash doesn't match nBits");
+
+    if (nHeight <= getSecondHardforkBlock())
+        return true;
+
+    if (vtx.size() < 1)
+        return error("CheckSignature() : no coinbase transaction");
+
+    // Check coinbase
+    const CTransaction& CoinBase = vtx[0];
+    if (!CoinBase.IsCoinBase())
+        return error("CheckSignature() : first transaction is not coinbase");
+    if (CoinBase.vout.size() != 1)
+        return error("CheckSignature() : coinbase doesn't have exactly one output");
+    if (CoinBase.nLockTime != 0)
+        return error("CheckSignature() : coinbase nLockTime != 0");
+
+    // Extract miner's address from coinbase
+    const CScript& OutScript = CoinBase.vout[0].scriptPubKey;
+    if (OutScript.size() != 22)
+        return error("CheckSignature() : coinbase OutScript.size() != 22");
+    CTxDestination Dest;
+    if (!ExtractDestination(OutScript, Dest))
+        return error("CheckSignature() : coinbase has non-standard output");
+    CBitcoinAddress Address;
+    if (!Address.Set(Dest) || !Address.IsValid())
+        return error("CheckSignature() : can't extract address from coinbase");
+    CKeyID KeyID;
+    if (!Address.GetKeyID(KeyID))
+        return error("CheckSignature() : coinbase address is not pubkeyhash");
+
+    // Check miner's signature
+    if (GetRewardAddress().GetID() != KeyID)
+        return error("CheckSignature() : incorrect signature");
+
+    return true;
+}
+
+bool CBlock::CheckProofOfWork() const
+{
+    // Check everything except hashWholeBlock
+    if (!CheckProofOfWorkLite())
+        return false;
+
+    if (nHeight <= getSecondHardforkBlock())
+        return true;
+
+    CBufferStream<MAX_BLOCK_SIZE> PoKData(SER_GETHASH, 0);
+    GetPoKData(PoKData);
+
+    if (HashPoKData(PoKData) != hashWholeBlock)
+        return error("CheckProofOfWork() : whole block hash mismatch");
 
     return true;
 }
@@ -5104,13 +5273,9 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 }
 
 
-CBlockTemplate* CreateNewBlockWithKey(CReserveKey& reservekey)
+CBlockTemplate* CreateNewBlockWithKey(CKeyID pubkeyid)
 {
-    CPubKey pubkey;
-    if (!reservekey.GetReservedKey(pubkey))
-        return NULL;
-
-    CScript scriptPubKey = CScript() << pubkey.GetID() << OP_CHECKSIG;
+    CScript scriptPubKey = CScript() << pubkeyid << OP_CHECKSIG;
     return CreateNewBlock(scriptPubKey);
 }
 
@@ -5234,28 +5399,29 @@ void static SpreadCoinMiner(CWallet *pwallet)
         unsigned int nTransactionsUpdatedLast = nTransactionsUpdated;
         CBlockIndex* pindexPrev = pindexBest;
 
-        auto_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey(reservekey));
+        CPubKey pubkey;
+        if (!reservekey.GetReservedKey(pubkey))
+            return;
+        CKey PrivKey;
+        if (!pwallet->GetKey(pubkey.GetID(), PrivKey))
+            return;
+        auto_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey(pubkey.GetID()));
         if (!pblocktemplate.get())
             return;
         CBlock *pblock = &pblocktemplate->block;
         IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
+        bool SpreadMining = pblock->nHeight > getSecondHardforkBlock();
+
         printf("Running SpreadCoinMiner with %"PRIszu" transactions in block (%u bytes)\n", pblock->vtx.size(),
                ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION));
 
-        //
-        // Pre-build hash buffers
-        //
-        char pmidstatebuf[32+16]; char* pmidstate = alignup<16>(pmidstatebuf);
-        char pdatabuf[128+16];    char* pdata     = alignup<16>(pdatabuf);
-        char phash1buf[64+16];    char* phash1    = alignup<16>(phash1buf);
-
-        FormatHashBuffers(pblock, pmidstate, pdata, phash1);
-
-        unsigned int& nBlockTime = *(unsigned int*)(pdata + 64 + 4);
-        unsigned int& nBlockBits = *(unsigned int*)(pdata + 64 + 8);
-        //unsigned int& nBlockNonce = *(unsigned int*)(pdata + 64 + 12);
-
+        CBufferStream<MAX_BLOCK_SIZE> PoKData(SER_GETHASH, 0);
+        pblock->GetPoKData(PoKData);
+        uint8_t* pNonce = &PoKData[0];
+        uint8_t* pBlockTime = &PoKData[4];
+        uint8_t* pMinerSignature = &PoKData[12];
+        CSignerECDSA Signer(PrivKey.begin(), pblock->MinerSignature.begin());
 
         //
         // Search
@@ -5266,11 +5432,25 @@ void static SpreadCoinMiner(CWallet *pwallet)
         {
             unsigned int nHashesDone = 0;
 
-            uint256 thash;
             loop
             {
-                thash = pblock->GetPoWHash();
-                if (thash <= hashTarget)
+                bool Good;
+                if (!SpreadMining)
+                {
+                    Good = pblock->GetPoWHash() <= hashTarget;
+                }
+                else
+                {
+                    if ((pblock->nNonce & NONCE_MASK) == 0)
+                    {
+                        Signer.SignFast(pblock->GetHashForSignature(), pblock->MinerSignature.begin());
+                        memcpy(pMinerSignature, pblock->MinerSignature.begin(), pblock->MinerSignature.size());
+                        pblock->hashWholeBlock = CBlock::HashPoKData(PoKData);
+                    }
+                    Good = pblock->GetPoWHash() <= hashTarget && pblock->GetRewardAddress() == pubkey;
+                }
+
+                if (Good)
                 {
                     // Found a solution
                     SetThreadPriority(THREAD_PRIORITY_NORMAL);
@@ -5279,6 +5459,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
                     break;
                 }
                 pblock->nNonce += 1;
+                memcpy(pNonce, &pblock->nNonce, sizeof(pblock->nNonce));
                 nHashesDone += 1;
                 if ((pblock->nNonce & 0xFF) == 0)
                     break;
@@ -5326,11 +5507,10 @@ void static SpreadCoinMiner(CWallet *pwallet)
 
             // Update nTime every few seconds
             pblock->UpdateTime(pindexPrev);
-            nBlockTime = ByteReverse(pblock->nTime);
+            memcpy(pBlockTime, &pblock->nTime, sizeof(pblock->nTime));
             if (fTestNet)
             {
                 // Changing pblock->nTime can change work required on testnet:
-                nBlockBits = ByteReverse(pblock->nBits);
                 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
             }
         }

@@ -118,7 +118,8 @@ OBJS= \
     obj/jh.o\
     obj/keccak.o\
     obj/skein.o \
-    obj/bttrackers.o
+    obj/bttrackers.o \
+    obj/ecdsa.o
 
 ifndef USE_UPNP
 	override USE_UPNP = -
