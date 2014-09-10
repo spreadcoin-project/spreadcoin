@@ -24,6 +24,7 @@ MiningPage::MiningPage(QWidget *parent) :
     ui->sliderCores->setMinimum(1);
     ui->sliderCores->setMaximum(nThreads);
     ui->sliderCores->setValue(nUseThreads);
+    ui->labelNCores->setText(QString("%1").arg(nUseThreads));
 
     connect(ui->sliderCores, SIGNAL(valueChanged(int)), this, SLOT(changeNumberOfCores(int)));
     connect(ui->pushSwitchMining, SIGNAL(clicked()), this, SLOT(switchMining()));
