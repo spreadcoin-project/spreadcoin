@@ -1376,7 +1376,7 @@ unsigned int static GetNextWorkRequired(const CBlockIndex* pLastBlock, const CBl
         return bnProofOfWorkLimit.GetCompact();
 
     if ((int)getSecondHardforkBlock() <= pLastBlock->nHeight && pLastBlock->nHeight <= (int)getSecondHardforkBlock() + nInterval)
-        return (bnProofOfWorkLimit*20).GetCompact();
+        return (bnProofOfWorkLimit/20).GetCompact();
 
     pLastBlock = pLastBlock->pprev;
     const CBlockIndex *pCurBlock = pLastBlock;
