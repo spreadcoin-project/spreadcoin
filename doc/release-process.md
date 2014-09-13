@@ -5,7 +5,7 @@ Release Process
 
 ###update (commit) version in sources
 
-	darkcoin-qt.pro
+	bitcoin-qt.pro
 	contrib/verifysfbinaries/verify.sh
 	doc/README*
 	share/setup.nsi
