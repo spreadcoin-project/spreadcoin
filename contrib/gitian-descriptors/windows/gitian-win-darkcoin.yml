@@ -39,7 +39,7 @@ script: |
   #  The thorough solution would be to use QMap instead of QHash, but this requires patching Qt.
   #  For now luckily there is a test mode that forces a fixed seed.
   export QT_RCC_TEST=1
-  for BITS in 32; do # for architectures
+  for BITS in 32 64; do # for architectures
     #
     STAGING=$HOME/staging${BITS}
     BUILDDIR=$HOME/build${BITS}
@@ -77,19 +77,22 @@ script: |
     export LD_PRELOAD=/usr/lib/faketime/libfaketime.so.1
     export FAKETIME=$REFERENCE_DATETIME
     ln -s $STAGING $HOME/qt
-    $STAGING/host/bin/qmake -spec win32-g++ MINIUPNPC_LIB_PATH=$STAGING MINIUPNPC_INCLUDE_PATH=$STAGING BDB_LIB_PATH=$STAGING BDB_INCLUDE_PATH=$STAGING BOOST_LIB_PATH=$STAGING BOOST_INCLUDE_PATH=$STAGING BOOST_LIB_SUFFIX=-mt-s BOOST_THREAD_LIB_SUFFIX=_win32-mt-s OPENSSL_LIB_PATH=$STAGING OPENSSL_INCLUDE_PATH=$STAGING QRENCODE_LIB_PATH=$STAGING QRENCODE_INCLUDE_PATH=$STAGING USE_QRCODE=1 INCLUDEPATH=$STAGING DEFINES=BOOST_THREAD_USE_LIB BITCOIN_NEED_QT_PLUGINS=0 QMAKE_LRELEASE=lrelease QMAKE_CXXFLAGS=-frandom-seed=spreadcoin USE_BUILD_INFO=1 USE_SSE2=1 USE_UPNP=1
+    $STAGING/host/bin/qmake -spec win32-g++ MINIUPNPC_LIB_PATH=$STAGING MINIUPNPC_INCLUDE_PATH=$STAGING BDB_LIB_PATH=$STAGING BDB_INCLUDE_PATH=$STAGING BOOST_LIB_PATH=$STAGING BOOST_INCLUDE_PATH=$STAGING BOOST_LIB_SUFFIX=-mt-s BOOST_THREAD_LIB_SUFFIX=_win32-mt-s OPENSSL_LIB_PATH=$STAGING OPENSSL_INCLUDE_PATH=$STAGING QRENCODE_LIB_PATH=$STAGING QRENCODE_INCLUDE_PATH=$STAGING USE_QRCODE=1 INCLUDEPATH=$STAGING DEFINES=BOOST_THREAD_USE_LIB BITCOIN_NEED_QT_PLUGINS=0 QMAKE_LRELEASE=lrelease QMAKE_CXXFLAGS=-frandom-seed=spreadcoin USE_BUILD_INFO=1 USE_SSE2=1 USE_UPNP=1 BITS=$BITS
     make V=1 $MAKEOPTS
     $HOST-strip release/spreadcoin-qt.exe
     cp -f release/spreadcoin-qt.exe $BINDIR/
     #
     cd src
-    export LD_PRELOAD=/usr/lib/faketime/libfaketime.so.1
-    export FAKETIME=$REFERENCE_DATETIME
-    export TZ=UTC
-    make -f makefile.linux-mingw $MAKEOPTS DEPSDIR=$STAGING spreadcoind.exe USE_UPNP=1 DEBUGFLAGS="-frandom-seed=spreadcoin" USE_SSE2=1
-    $HOST-strip spreadcoind.exe
-    mkdir $BINDIR/daemon
-    cp spreadcoind.exe $BINDIR/daemon
+    # daemon build fails in 64-bit mode
+    if [ "$BITS" == "32" ]; then
+        export LD_PRELOAD=/usr/lib/faketime/libfaketime.so.1
+        export FAKETIME=$REFERENCE_DATETIME
+        export TZ=UTC
+        make -f makefile.linux-mingw $MAKEOPTS DEPSDIR=$STAGING spreadcoind.exe USE_UPNP=1 DEBUGFLAGS="-frandom-seed=spreadcoin" USE_SSE2=1
+        $HOST-strip spreadcoind.exe
+        mkdir $BINDIR/daemon
+        cp spreadcoind.exe $BINDIR/daemon
+    fi
     
     cd ..
     mkdir nsis
@@ -97,7 +100,9 @@ script: |
     cd nsis/src
     mkdir ../release
     cp -v ../../release/* ../release/
-    cp -v ../../src/*.exe .
+    if [ "$BITS" == "32" ]; then
+        cp -v ../../src/*.exe .
+    fi
   #  sed "s/0.9.0.0/${VERSION_TAG}/" -i ../share/setup.nsi 
   #  makensis ../share/setup.nsi
   #  cp -v ../share/spreadcoin-*-win${BITS}-setup.exe $BINDIR/
