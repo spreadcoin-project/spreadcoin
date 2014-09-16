@@ -782,7 +782,7 @@ bool CTxMemPool::accept(CValidationState &state, CTransaction &tx, bool fCheckIn
         unsigned int nSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
 
         // Don't accept it if it can't get into a block
-        int64 txMinFee = tx.GetMinFee(1000, true, GMF_RELAY);
+        int64 txMinFee = tx.GetMinFee(1, true, GMF_RELAY);
         if (fLimitFree && nFees < txMinFee)
             return error("CTxMemPool::accept() : not enough fees %s, %"PRI64d" < %"PRI64d,
                          hash.ToString().c_str(),
@@ -998,7 +998,7 @@ bool CTxMemPool::acceptable(CValidationState &state, CTransaction &tx, bool fChe
         int64 nFees = tx.GetValueIn(view)-tx.GetValueOut();
 
         // Don't accept it if it can't get into a block
-        int64 txMinFee = tx.GetMinFee(1000, true, GMF_RELAY);
+        int64 txMinFee = tx.GetMinFee(1, true, GMF_RELAY);
         if (fLimitFree && nFees < txMinFee) {
             return error("CTxMemPool::acceptable() : not enough fees %s, %"PRI64d" < %"PRI64d,
                          hash.ToString().c_str(),
