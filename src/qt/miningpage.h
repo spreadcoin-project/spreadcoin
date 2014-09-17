@@ -2,6 +2,9 @@
 #define MININGPAGE_H
 
 #include <QWidget>
+#include <memory>
+
+#include "walletmodel.h"
 
 namespace Ui {
 class MiningPage;
@@ -15,8 +18,12 @@ public:
     explicit MiningPage(QWidget *parent = 0);
     ~MiningPage();
 
+    void setModel(WalletModel *model);
+
 private:
     Ui::MiningPage *ui;
+    WalletModel *model;
+    std::auto_ptr<WalletModel::UnlockContext> unlockContext;
 
     void restartMining(bool fGenerate);
     void timerEvent(QTimerEvent *event);

@@ -3,6 +3,7 @@
 #include "main.h"
 #include "util.h"
 #include "bitcoinrpc.h"
+#include "walletmodel.h"
 
 #include <boost/thread.hpp>
 #include <stdio.h>
@@ -37,14 +38,34 @@ MiningPage::~MiningPage()
     delete ui;
 }
 
+void MiningPage::setModel(WalletModel *model)
+{
+    this->model = model;
+}
+
 void MiningPage::restartMining(bool fGenerate)
 {
     int nThreads = ui->sliderCores->value();
+
+    // unlock wallet before mining
+    if (fGenerate && !unlockContext.get())
+    {
+        this->unlockContext.reset(new WalletModel::UnlockContext(model->requestUnlock()));
+        if (!unlockContext->isValid())
+        {
+            unlockContext.reset(NULL);
+            return;
+        }
+    }
 
     json_spirit::Array Args;
     Args.push_back(fGenerate);
     Args.push_back(nThreads);
     setgenerate(Args, false);
+
+    // lock wallet after mining
+    if (!fGenerate)
+        unlockContext.reset(NULL);
 
     ui->labelNCores->setText(QString("%1").arg(nThreads));
     ui->pushSwitchMining->setText(fGenerate? tr("Stop mining") : tr("Start mining"));
