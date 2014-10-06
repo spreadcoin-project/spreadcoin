@@ -5385,10 +5385,6 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
     return true;
 }
 
-#include <QMessageBox>
-
-extern "C" void init_Xhash_contexts();
-
 void static SpreadCoinMiner(CWallet *pwallet)
 {
     printf("SpreadCoinMiner started\n");
@@ -5398,13 +5394,6 @@ void static SpreadCoinMiner(CWallet *pwallet)
     // Each thread has its own key and counter
     CReserveKey reservekey(pwallet);
     unsigned int nExtraNonce = 0;
-
-    const char* test = "testing";
-
- /*   uint256 a = Hash9_Fast(test, test + strlen(test));
-    uint256 b = Hash9(test, test + strlen(test));*/
-//
-  //  QMessageBox::information(NULL, QString::fromUtf8(a.ToString().c_str()), QString::fromUtf8(b.ToString().c_str()), QMessageBox::Yes);
 
     try { loop {
        while (vNodes.empty())
@@ -5538,6 +5527,8 @@ void static SpreadCoinMiner(CWallet *pwallet)
         throw;
     }
 }
+
+extern "C" void init_Xhash_contexts();
 
 void GenerateBitcoins(bool fGenerate, CWallet* pwallet)
 {
