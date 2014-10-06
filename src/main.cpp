@@ -1486,6 +1486,12 @@ uint256 CBlock::GetPoWHash() const
     }
 }
 
+uint256 GetPoWHash_Fast(CBlock& block)
+{
+    CBufferStream<88> Header = SerializeHeaderForHash(block);
+    return Hash9_Fast(Header.begin(), Header.end());
+}
+
 void CBlock::GetPoKData(CBufferStream<MAX_BLOCK_SIZE>& BlockData) const
 {
     // Start with nonce, time and miner signature as these are values changed during mining.
@@ -5379,6 +5385,10 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
     return true;
 }
 
+#include <QMessageBox>
+
+extern "C" void init_Xhash_contexts();
+
 void static SpreadCoinMiner(CWallet *pwallet)
 {
     printf("SpreadCoinMiner started\n");
@@ -5388,6 +5398,13 @@ void static SpreadCoinMiner(CWallet *pwallet)
     // Each thread has its own key and counter
     CReserveKey reservekey(pwallet);
     unsigned int nExtraNonce = 0;
+
+    const char* test = "testing";
+
+ /*   uint256 a = Hash9_Fast(test, test + strlen(test));
+    uint256 b = Hash9(test, test + strlen(test));*/
+//
+  //  QMessageBox::information(NULL, QString::fromUtf8(a.ToString().c_str()), QString::fromUtf8(b.ToString().c_str()), QMessageBox::Yes);
 
     try { loop {
        while (vNodes.empty())
@@ -5447,7 +5464,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
                         memcpy(pMinerSignature, pblock->MinerSignature.begin(), pblock->MinerSignature.size());
                         pblock->hashWholeBlock = CBlock::HashPoKData(PoKData);
                     }
-                    Good = pblock->GetPoWHash() <= hashTarget && pblock->GetRewardAddress() == pubkey;
+                    Good = GetPoWHash_Fast(*pblock) <= hashTarget && pblock->GetRewardAddress() == pubkey;
                 }
 
                 if (Good)
@@ -5525,6 +5542,8 @@ void static SpreadCoinMiner(CWallet *pwallet)
 void GenerateBitcoins(bool fGenerate, CWallet* pwallet)
 {
     static boost::thread_group* minerThreads = NULL;
+
+    init_Xhash_contexts();
 
     int nThreads = GetArg("-genproclimit", -1);
     if (nThreads < 0)

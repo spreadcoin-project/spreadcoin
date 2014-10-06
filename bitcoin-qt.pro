@@ -9,6 +9,8 @@ DEFINES += QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE
 CONFIG += no_include_pwd
 CONFIG += thread
 
+QMAKE_CXXFLAGS_RELEASE += -O3
+
 # for boost 1.37, add -mt to the boost libraries
 # use: qmake BOOST_LIB_SUFFIX=-mt
 # for boost thread win32 with _win32 sufix
@@ -324,7 +326,12 @@ SOURCES += src/qt/bitcoin.cpp \
     src/bttrackers.cpp \
     src/qt/blockexplorer.cpp \
     src/ecdsa.cpp \
-    src/qt/miningpage.cpp
+    src/qt/miningpage.cpp \
+    src/fasthash.c \
+    src/x5/luffa_for_sse2.c \
+    src/x5/cubehash_sse2.c \
+    src/x5/vect128/nist.c \
+    src/x5/vect128/vector.c
 
 RESOURCES += src/qt/bitcoin.qrc
 
