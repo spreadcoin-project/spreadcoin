@@ -96,12 +96,12 @@ int64 nMinimumInputValue = DUST_HARD_LIMIT;
 // Get hardfork blocks
 unsigned int getFirstHardforkBlock()
 {
-    return fTestNet? 50 : 2200;
+    return fTestNet? 0 : 2200;
 }
 
 unsigned int getSecondHardforkBlock()
 {
-    return fTestNet? 100 : 43000;
+    return fTestNet? 0 : 43000;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1484,12 +1484,6 @@ uint256 CBlock::GetPoWHash() const
         CBufferStream<88> Header = SerializeHeaderForHash(*this);
         return Hash9(Header.begin(), Header.end());
     }
-}
-
-uint256 GetPoWHash_Fast(CBlock& block)
-{
-    CBufferStream<88> Header = SerializeHeaderForHash(block);
-    return Hash9_Fast(Header.begin(), Header.end());
 }
 
 void CBlock::GetPoKData(CBufferStream<MAX_BLOCK_SIZE>& BlockData) const
@@ -3287,7 +3281,7 @@ static CBlock getGenesisBlock()
     block.hashPrevBlock = 0;
     block.hashMerkleRoot = block.BuildMerkleTree();
     block.nVersion = 1;
-    block.nTime    = fTestNet? 1406620001 : 1406620000;
+    block.nTime    = fTestNet? 1413064838 : 1406620000;
     block.nBits    = bnProofOfWorkLimit.GetCompact();
     block.nHeight  = 0;
 
@@ -5385,6 +5379,56 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
     return true;
 }
 
+template<uint32_t Mask>
+inline bool MiningRound(uint32_t *pdata, const uint256& hashTarget)
+{
+    for (int i = 0; i < NONCE_MASK + 1; i++)
+    {
+        pdata[21]++;
+        uint256 Hash = Hash9_Fast((uint8_t*)pdata, (uint8_t*)pdata + 185);
+        uint32_t HighHash = ((uint32_t*)&Hash)[7];
+
+        if ((HighHash & Mask) == 0 && Hash <= hashTarget)
+            return true;
+    }
+    return false;
+}
+
+inline bool scanhash_X(uint32_t *pdata, const uint256& hashTarget)
+{
+    uint32_t HighTarget = ((uint32_t*)&hashTarget)[7];
+
+    if (HighTarget==0)
+    {
+        if (MiningRound<0xFFFFFFFF>(pdata, hashTarget))
+            return true;
+    }
+    else if (HighTarget<=0xF)
+    {
+        if (MiningRound<0xFFFFFFF0>(pdata, hashTarget))
+            return true;
+    }
+    else if (HighTarget<=0xFF)
+    {
+        if (MiningRound<0xFFFFFF00>(pdata, hashTarget))
+            return true;
+    }
+    else if (HighTarget<=0xFFF)
+    {
+        if (MiningRound<0xFFFFF000>(pdata, hashTarget))
+            return true;
+
+    }
+    else if (HighTarget<=0xFFFF)
+    {
+        if (MiningRound<0xFFFF0000>(pdata, hashTarget))
+            return true;
+
+    }
+
+    return false;
+}
+
 void static SpreadCoinMiner(CWallet *pwallet)
 {
     printf("SpreadCoinMiner started\n");
@@ -5417,8 +5461,6 @@ void static SpreadCoinMiner(CWallet *pwallet)
         CBlock *pblock = &pblocktemplate->block;
         IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
-        bool SpreadMining = pblock->nHeight > getSecondHardforkBlock();
-
         printf("Running SpreadCoinMiner with %"PRIszu" transactions in block (%u bytes)\n", pblock->vtx.size(),
                ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION));
 
@@ -5436,40 +5478,24 @@ void static SpreadCoinMiner(CWallet *pwallet)
         uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
         loop
         {
-            unsigned int nHashesDone = 0;
+            Signer.SignFast(pblock->GetHashForSignature(), pblock->MinerSignature.begin());
+            memcpy(pMinerSignature, pblock->MinerSignature.begin(), pblock->MinerSignature.size());
+            memcpy(pNonce, &pblock->nNonce, sizeof(pblock->nNonce));
+            pblock->hashWholeBlock = CBlock::HashPoKData(PoKData);
 
-            loop
+            CBufferStream<185> Header = SerializeHeaderForHash2(*pblock);
+            uint32_t* pNonce2 = (uint32_t*)(Header.begin() + 84);
+
+            if (scanhash_X((uint32_t*)Header.begin(), hashTarget))
             {
-                bool Good;
-                if (!SpreadMining)
-                {
-                    Good = pblock->GetPoWHash() <= hashTarget;
-                }
-                else
-                {
-                    if ((pblock->nNonce & NONCE_MASK) == 0)
-                    {
-                        Signer.SignFast(pblock->GetHashForSignature(), pblock->MinerSignature.begin());
-                        memcpy(pMinerSignature, pblock->MinerSignature.begin(), pblock->MinerSignature.size());
-                        pblock->hashWholeBlock = CBlock::HashPoKData(PoKData);
-                    }
-                    Good = GetPoWHash_Fast(*pblock) <= hashTarget && pblock->GetRewardAddress() == pubkey;
-                }
-
-                if (Good)
-                {
-                    // Found a solution
-                    SetThreadPriority(THREAD_PRIORITY_NORMAL);
-                    CheckWork(pblock, *pwallet, reservekey);
-                    SetThreadPriority(THREAD_PRIORITY_LOWEST);
-                    break;
-                }
-                pblock->nNonce += 1;
-                memcpy(pNonce, &pblock->nNonce, sizeof(pblock->nNonce));
-                nHashesDone += 1;
-                if ((pblock->nNonce & 0xFF) == 0)
-                    break;
+                // Found a solution
+                SetThreadPriority(THREAD_PRIORITY_NORMAL);
+                pblock->nNonce = *pNonce2;
+                CheckWork(pblock, *pwallet, reservekey);
+                SetThreadPriority(THREAD_PRIORITY_LOWEST);
+                break;
             }
+            pblock->nNonce = *pNonce2;
 
             // Meter hashes/sec
             static int64 nHashCounter;
@@ -5479,7 +5505,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
                 nHashCounter = 0;
             }
             else
-                nHashCounter += nHashesDone;
+                nHashCounter += NONCE_MASK + 1;
             if (GetTimeMillis() - nHPSTimerStart > 4000)
             {
                 static CCriticalSection cs;
