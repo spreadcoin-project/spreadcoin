@@ -10,6 +10,7 @@ CONFIG += no_include_pwd
 CONFIG += thread
 
 QMAKE_CXXFLAGS_RELEASE += -O3
+QMAKE_CFLAGS_RELEASE += -O3
 
 # for boost 1.37, add -mt to the boost libraries
 # use: qmake BOOST_LIB_SUFFIX=-mt
