@@ -3,7 +3,6 @@ name: "spreadcoin"
 suites:
 - "precise"
 architectures:
-- "i386"
 - "amd64"
 packages: 
 - "g++"
@@ -26,11 +25,8 @@ remotes:
 - "url": "https://github.com/spreadcoin-project/spreadcoin.git"
   "dir": "spreadcoin"
 files:
-- "bitcoin-deps-linux32-gitian-r6.zip"
 - "bitcoin-deps-linux64-gitian-r6.zip"
-- "boost-linux32-1.55.0-gitian-r1.zip"
 - "boost-linux64-1.55.0-gitian-r1.zip"
-- "qt-linux32-4.6.4-gitian-r1.tar.gz"
 - "qt-linux64-4.6.4-gitian-r1.tar.gz"
 - "zlib-1.2.8.tar.gz"
 script: |

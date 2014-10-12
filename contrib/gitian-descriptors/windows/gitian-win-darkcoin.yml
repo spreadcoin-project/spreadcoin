@@ -16,13 +16,9 @@ remotes:
 - "url": "https://github.com/spreadcoin-project/spreadcoin.git"
   "dir": "spreadcoin"
 files:
-- "qt-win32-5.2.0-gitian-r3.zip"
 - "qt-win64-5.2.0-gitian-r3.zip"
-- "boost-win32-1.55.0-gitian-r6.zip"
 - "boost-win64-1.55.0-gitian-r6.zip"
-- "bitcoin-deps-win32-gitian-r13.zip"
 - "bitcoin-deps-win64-gitian-r13.zip"
-- "protobuf-win32-2.5.0-gitian-r4.zip"
 - "protobuf-win64-2.5.0-gitian-r4.zip"
 script: |
   # Defines
@@ -39,7 +35,7 @@ script: |
   #  The thorough solution would be to use QMap instead of QHash, but this requires patching Qt.
   #  For now luckily there is a test mode that forces a fixed seed.
   export QT_RCC_TEST=1
-  for BITS in 32 64; do # for architectures
+  for BITS in 64; do # for architectures
     #
     STAGING=$HOME/staging${BITS}
     BUILDDIR=$HOME/build${BITS}
