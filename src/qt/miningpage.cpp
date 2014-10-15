@@ -90,7 +90,7 @@ static QString formatTimeInterval(CBigNum t)
         31556952, // average number of seconds in gregorian year
         31556952/12, // average number of seconds in gregorian month
         24*60*60, // number of seconds in a day
-        24*60, // number of seconds in an hour
+        60*60, // number of seconds in an hour
         60, // number of seconds in a minute
         1
     };
