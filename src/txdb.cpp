@@ -306,6 +306,8 @@ bool CAddressDB::AddTx(const std::vector<CTransaction>& vtx, const std::vector<s
     {
         const CDiskTxPos& pos = vpos[i].second;
         uint256 TxHash = vtx[i].GetHash();
+
+        std::vector<CScriptID> Inputs;
         for (unsigned int j = 0; j < vtx[i].vin.size(); j++)
         {
             const CTxIn& in = vtx[i].vin[j];
@@ -313,6 +315,12 @@ bool CAddressDB::AddTx(const std::vector<CTransaction>& vtx, const std::vector<s
             if (script.empty())
                 continue;
             CScriptID scid = script.GetID();
+
+            // ignore inputs from the same address
+            if (std::find(Inputs.begin(), Inputs.end(), scid) != Inputs.end())
+                continue;
+            Inputs.push_back(scid);
+
             std::vector<CDiskTxPos> Txs;
             Read(scid, Txs);
             Txs.push_back(pos);
