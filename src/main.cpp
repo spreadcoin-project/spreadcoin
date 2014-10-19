@@ -12,6 +12,7 @@
 #include "ui_interface.h"
 #include "checkqueue.h"
 #include "ecdsa.h"
+#include "fasthash.h"
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/clamp.hpp>
 #include <boost/filesystem.hpp>
@@ -5379,8 +5380,6 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
     return true;
 }
 
-extern "C" bool scanhash_X(uint32_t *pdata, const uint32_t *ptarget);
-
 void static SpreadCoinMiner(CWallet *pwallet)
 {
     printf("SpreadCoinMiner started\n");
@@ -5505,8 +5504,6 @@ void static SpreadCoinMiner(CWallet *pwallet)
         throw;
     }
 }
-
-extern "C" void init_Xhash_contexts();
 
 void GenerateBitcoins(bool fGenerate, CWallet* pwallet)
 {

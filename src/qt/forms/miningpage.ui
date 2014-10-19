@@ -136,6 +136,13 @@
     </layout>
    </item>
    <item>
+    <widget class="QLabel" name="labelAvxAes">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+   <item>
     <spacer name="verticalSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>

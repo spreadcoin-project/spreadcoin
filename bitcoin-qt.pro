@@ -241,7 +241,8 @@ HEADERS += src/qt/bitcoingui.h \
     src/endiannes.h \
     src/qt/blockexplorer.h \
     src/ecdsa.h \
-    src/qt/miningpage.h
+    src/qt/miningpage.h \
+    src/fasthash.h
 
 SOURCES += src/qt/bitcoin.cpp \
     src/qt/bitcoingui.cpp \
@@ -328,11 +329,14 @@ SOURCES += src/qt/bitcoin.cpp \
     src/qt/blockexplorer.cpp \
     src/ecdsa.cpp \
     src/qt/miningpage.cpp \
-    src/fasthash.c \
     src/x5/luffa_for_sse2.c \
     src/x5/cubehash_sse2.c \
     src/x5/vect128/nist.c \
-    src/x5/vect128/vector.c
+    src/x5/vect128/vector.c \
+    src/fasthash_avxaes.c \
+    src/fasthash_noavxaes.c \
+    src/x6/groestl/aesni/hash-groestl.c \
+    src/x5/echo512/ccalik/aesni/hash_echo.c
 
 RESOURCES += src/qt/bitcoin.qrc
 
