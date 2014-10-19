@@ -15,7 +15,7 @@
 //-----------
 #include "x5/sph_echo.h"
 //----
-#include "x6/blake.c"
+#include "blake.c"
 #include "x6/bmw.c"
 #include "x6/keccak.c"
 #include "x6/skein.c"
@@ -42,6 +42,7 @@ typedef struct {
     sph_shavite512_context  shavite1;
     //sph_simd512_context		simd1;
     sph_echo512_context		echo1;
+    sph_blake512_context    blake1;
 } Xhash_context_holder;
 
 Xhash_context_holder base_contexts;
@@ -60,10 +61,13 @@ void init_Xhash_contexts()
   //sph_simd512_init(&base_contexts.simd1);
   //--------------
   sph_echo512_init(&base_contexts.echo1);
+
+  sph_blake512_init(&base_contexts.blake1);
 }
 
-void Xhash(void *state)
+void Xhash(void *state, const void *input)
 {
+    Xhash_context_holder ctx;
 
     DATA_ALIGN16(unsigned char hashbuf[128]);
     DATA_ALIGN16(size_t hashptr);
@@ -76,15 +80,19 @@ void Xhash(void *state)
     int speedrun[] = {0, 1, 3, 4, 6, 7 };
     int i;
     DATA_ALIGN16(unsigned char hash[128]);
-    /* proably not needed */
-    memset(hash, 0, 128);
+
+    memcpy(&ctx, &base_contexts, sizeof(base_contexts));
+
 // blake1-bmw2-grs3-skein4-jh5-keccak6-luffa7-cubehash8-shavite9-simd10-echo11
     //---blake1---
+    sph_blake512 (&ctx.blake1, input, 185);
+    sph_blake512_close(&ctx.blake1, hash);
+
   /*  DECL_BLK;
     BLK_I;
     BLK_W;
     BLK_C;*/
-    memcpy(hash, state, 128);
+   // memcpy(hash, state, 128);
 
 //---bmw2---
     DECL_BMW;
@@ -118,14 +126,12 @@ void Xhash(void *state)
 
  asm volatile ("emms");
 
-Xhash_context_holder ctx;
-hashState			 ctx_luffa;
-cubehashParam		 ctx_cubehash;
+    hashState			 ctx_luffa;
+    cubehashParam		 ctx_cubehash;
 //---local simd var ---
-hashState_sd *     ctx_simd1;
+    hashState_sd *     ctx_simd1;
 
- uint32_t hashA[16], hashB[16];
- memcpy(&ctx, &base_contexts, sizeof(base_contexts));
+    uint32_t hashA[16], hashB[16];
     memcpy(&ctx_luffa,&base_context_luffa,sizeof(hashState));
     memcpy(&ctx_cubehash,&base_context_cubehash,sizeof(cubehashParam));
 
@@ -153,4 +159,94 @@ hashState_sd *     ctx_simd1;
     sph_echo512_close(&ctx.echo1, hashA);
 
     memcpy(state, hashA, 32);
+}
+
+bool fulltest(const uint32_t *hash, const uint32_t *target)
+{
+    int i;
+    bool rc = true;
+
+    for (i = 7; i >= 0; i--) {
+        if (hash[i] > target[i]) {
+            rc = false;
+            break;
+        }
+        if (hash[i] < target[i]) {
+            rc = true;
+            break;
+        }
+    }
+
+    return rc;
+}
+
+bool scanhash_X(uint32_t *pdata, const uint32_t *ptarget)
+{
+    uint32_t i = pdata[21];
+    const uint32_t max_nonce = pdata[21] + 64;
+
+    uint32_t hash64[8] __attribute__((aligned(32)));
+
+    if (ptarget[7]==0)
+    {
+        do
+        {
+            pdata[21] = i++;
+            Xhash(hash64, pdata);
+            if (((hash64[7]&0xFFFFFFFF)==0) && fulltest(hash64, ptarget))
+                return true;
+        } while(i < max_nonce);
+    }
+    else if (ptarget[7]<=0xF)
+    {
+        do
+        {
+             pdata[21] = i++;
+             Xhash(hash64, pdata);
+             if (((hash64[7]&0xFFFFFFF0)==0) && fulltest(hash64, ptarget))
+                 return true;
+        } while(i < max_nonce);
+    }
+    else if (ptarget[7]<=0xFF)
+    {
+        do
+        {
+            pdata[21] = i++;
+            Xhash(hash64, pdata);
+            if (((hash64[7]&0xFFFFFF00)==0) && fulltest(hash64, ptarget))
+                 return true;
+        } while(i < max_nonce);
+    }
+    else if (ptarget[7]<=0xFFF)
+    {
+        do
+        {
+            pdata[21] = i++;
+            Xhash(hash64, pdata);
+            if (((hash64[7]&0xFFFFF000)==0) && fulltest(hash64, ptarget))
+                return true;
+        } while(i < max_nonce);
+    }
+    else if (ptarget[7]<=0xFFFF)
+    {
+        do
+        {
+            pdata[21] = i++;
+            Xhash(hash64, pdata);
+            if (((hash64[7]&0xFFFF0000)==0) && fulltest(hash64, ptarget))
+                return true;
+        } while(i < max_nonce);
+    }
+    else
+    {
+        do
+        {
+            pdata[21] = i++;
+            Xhash(hash64, pdata);
+            if (fulltest(hash64, ptarget))
+                return true;
+        } while(i < max_nonce);
+    }
+
+    return false;
 }

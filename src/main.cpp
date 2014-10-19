@@ -5379,55 +5379,7 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
     return true;
 }
 
-template<uint32_t Mask>
-inline bool MiningRound(uint32_t *pdata, const uint256& hashTarget)
-{
-    for (int i = 0; i < NONCE_MASK + 1; i++)
-    {
-        pdata[21]++;
-        uint256 Hash = Hash9_Fast((uint8_t*)pdata, (uint8_t*)pdata + 185);
-        uint32_t HighHash = ((uint32_t*)&Hash)[7];
-
-        if ((HighHash & Mask) == 0 && Hash <= hashTarget)
-            return true;
-    }
-    return false;
-}
-
-inline bool scanhash_X(uint32_t *pdata, const uint256& hashTarget)
-{
-    uint32_t HighTarget = ((uint32_t*)&hashTarget)[7];
-
-    if (HighTarget==0)
-    {
-        if (MiningRound<0xFFFFFFFF>(pdata, hashTarget))
-            return true;
-    }
-    else if (HighTarget<=0xF)
-    {
-        if (MiningRound<0xFFFFFFF0>(pdata, hashTarget))
-            return true;
-    }
-    else if (HighTarget<=0xFF)
-    {
-        if (MiningRound<0xFFFFFF00>(pdata, hashTarget))
-            return true;
-    }
-    else if (HighTarget<=0xFFF)
-    {
-        if (MiningRound<0xFFFFF000>(pdata, hashTarget))
-            return true;
-
-    }
-    else if (HighTarget<=0xFFFF)
-    {
-        if (MiningRound<0xFFFF0000>(pdata, hashTarget))
-            return true;
-
-    }
-
-    return false;
-}
+extern "C" bool scanhash_X(uint32_t *pdata, const uint32_t *ptarget);
 
 void static SpreadCoinMiner(CWallet *pwallet)
 {
@@ -5486,7 +5438,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
             CBufferStream<185> Header = SerializeHeaderForHash2(*pblock);
             uint32_t* pNonce2 = (uint32_t*)(Header.begin() + 84);
 
-            if (scanhash_X((uint32_t*)Header.begin(), hashTarget))
+            if (scanhash_X((uint32_t*)Header.begin(), (const uint32_t*)&hashTarget))
             {
                 // Found a solution
                 SetThreadPriority(THREAD_PRIORITY_NORMAL);
