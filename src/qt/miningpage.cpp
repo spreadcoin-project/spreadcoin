@@ -140,6 +140,21 @@ static QString formatTimeInterval(CBigNum t)
     }
 }
 
+static QString formatHashrate(int64 n)
+{
+    if (n == 0)
+        return "0 H/s";
+
+    int i = (int)floor(log(n)/log(1000));
+    float v = n*pow(1000.0f, -i);
+
+    QString prefix = "";
+    if (i >= 1 && i < 9)
+        prefix = " kMGTPEZY"[i];
+
+    return QString("%1 %2H/s").arg(v, 0, 'f', 2).arg(prefix);
+}
+
 void MiningPage::timerEvent(QTimerEvent *)
 {
     int64 NetworkHashrate = GetNetworkHashPS(120, -1).get_int64();
@@ -156,7 +171,7 @@ void MiningPage::timerEvent(QTimerEvent *)
         NextBlockTime = formatTimeInterval(ExpectedTime);
     }
 
-    ui->labelNethashrate->setText(QString("%1 H/s").arg(NetworkHashrate));
-    ui->labelYourHashrate->setText(QString("%1 H/s").arg(Hashrate));
+    ui->labelNethashrate->setText(formatHashrate(NetworkHashrate));
+    ui->labelYourHashrate->setText(formatHashrate(Hashrate));
     ui->labelNextBlock->setText(NextBlockTime);
 }
