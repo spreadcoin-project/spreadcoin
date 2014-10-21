@@ -8,12 +8,14 @@ Copyright (c) 2009-2014 The developers
 What is SpreadCoin?
 ----------------
 
-SpreadCoin is a fork of Bitcoin using X11 as a proof-of-work algorithm.
- - Super secure hashing algorithm: 11 rounds of scientific hashing functions (blake, bmw, groestl, jh, keccak, skein, luffa, cubehash, shavite, simd, echo)
- - Block reward is halved every 4 years
- - Block generation: 10 minutes
- - Difficulty Retargets every block
- - Supply curve is similar to Bitcoin
+SpreadCoin is a new cryptocurrency which is more decentralized than Bitcoin. It prevents centralization of hashing power in pools, which is one of the main concerns of Bitcoin security. SpreadCoin was fairly launched with no premine.
+ - Algorithm: SpreadX11
+ - Block generation: 1 minute
+ - Difficulty retargets: every block based on last 360 blocks
+ - Reward starts at approx. 6.66 coins per block
+ - Block reward is smoothly halved every 4 years
+ - Total supply: 20 mln coins
+ - No year 2106 problem
 
 License
 -------
