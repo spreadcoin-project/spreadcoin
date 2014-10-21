@@ -158,11 +158,14 @@ OBJS= \
     obj/skein.o\
     obj/bttrackers.o \
     obj/ecdsa.o\
-    obj/fasthash.o \
     obj/x5/luffa_for_sse2.o \
     obj/x5/cubehash_sse2.o \
     obj/x5/vect128/nist.o \
-    obj/x5/vect128/vector.o
+    obj/x5/vect128/vector.o \
+    obj/fasthash_avxaes.o \
+    obj/fasthash_noavxaes.o \
+    obj/x6/groestl/aesni/hash-groestl.o \
+    obj/x5/echo512/ccalik/aesni/hash_echo.o
 
 all: spreadcoind
 
