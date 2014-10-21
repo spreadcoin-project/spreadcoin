@@ -9,7 +9,6 @@ What is SpreadCoin?
 ----------------
 
 SpreadCoin is a new cryptocurrency which is more decentralized than Bitcoin. It prevents centralization of hashing power in pools, which is one of the main concerns of Bitcoin security. SpreadCoin was fairly launched with no premine.
-SpreadCoin is a fork of Bitcoin using X11 as a proof-of-work algorithm.
  - Algorithm: SpreadX11
  - Block generation: 1 minute
  - Difficulty retargets: every block based on last 360 blocks
