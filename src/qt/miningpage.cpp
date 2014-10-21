@@ -23,6 +23,19 @@ MiningPage::MiningPage(QWidget *parent) :
     if (nUseThreads < 0)
          nUseThreads = nThreads;
 
+    std::string PrivAddress = GetArg("-miningprivkey", "");
+    if (!PrivAddress.empty())
+    {
+        CBitcoinSecret Secret;
+        Secret.SetString(PrivAddress);
+        if (Secret.IsValid())
+        {
+            CBitcoinAddress Address;
+            Address.Set(Secret.GetKey().GetPubKey().GetID());
+            ui->labelAddress->setText(QString("All mined coins will go to to %1").arg(Address.ToString().c_str()));
+        }
+    }
+
     ui->sliderCores->setMinimum(1);
     ui->sliderCores->setMaximum(nThreads);
     ui->sliderCores->setValue(nUseThreads);
@@ -35,6 +48,7 @@ MiningPage::MiningPage(QWidget *parent) :
     connect(ui->sliderCores, SIGNAL(valueChanged(int)), this, SLOT(changeNumberOfCores(int)));
     connect(ui->pushSwitchMining, SIGNAL(clicked()), this, SLOT(switchMining()));
 
+    updateUI();
     startTimer(500);
 }
 
@@ -48,9 +62,24 @@ void MiningPage::setModel(WalletModel *model)
     this->model = model;
 }
 
+void MiningPage::updateUI()
+{
+    int nThreads = boost::thread::hardware_concurrency();
+
+    int nUseThreads = GetArg("-genproclimit", -1);
+    if (nUseThreads < 0)
+        nUseThreads = nThreads;
+
+
+    ui->labelNCores->setText(QString("%1").arg(nUseThreads));
+    ui->pushSwitchMining->setText(GetBoolArg("-gen", false)? tr("Stop mining") : tr("Start mining"));
+}
+
 void MiningPage::restartMining(bool fGenerate)
 {
     int nThreads = ui->sliderCores->value();
+
+    mapArgs["-genproclimit"] = QString("%1").arg(nThreads).toUtf8().data();
 
     // unlock wallet before mining
     if (fGenerate && !unlockContext.get())
@@ -72,8 +101,7 @@ void MiningPage::restartMining(bool fGenerate)
     if (!fGenerate)
         unlockContext.reset(NULL);
 
-    ui->labelNCores->setText(QString("%1").arg(nThreads));
-    ui->pushSwitchMining->setText(fGenerate? tr("Stop mining") : tr("Start mining"));
+    updateUI();
 }
 
 void MiningPage::changeNumberOfCores(int i)

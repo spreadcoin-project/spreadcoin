@@ -5386,6 +5386,17 @@ void static SpreadCoinMiner(CWallet *pwallet)
     SetThreadPriority(THREAD_PRIORITY_LOWEST);
     RenameThread("spreadcoin-miner");
 
+    std::string PrivAddress = GetArg("-miningprivkey", "");
+
+    CKey MiningKey;
+    if (!PrivAddress.empty())
+    {
+        CBitcoinSecret Secret;
+        Secret.SetString(PrivAddress);
+        if (Secret.IsValid())
+            MiningKey = Secret.GetKey();
+    }
+
     // Each thread has its own key and counter
     CReserveKey reservekey(pwallet);
     unsigned int nExtraNonce = 0;
@@ -5401,11 +5412,19 @@ void static SpreadCoinMiner(CWallet *pwallet)
         CBlockIndex* pindexPrev = pindexBest;
 
         CPubKey pubkey;
-        if (!reservekey.GetReservedKey(pubkey))
-            return;
         CKey PrivKey;
-        if (!pwallet->GetKey(pubkey.GetID(), PrivKey))
-            return;
+        if (MiningKey.IsValid())
+        {
+            PrivKey = MiningKey;
+            pubkey = MiningKey.GetPubKey();
+        }
+        else
+        {
+            if (!reservekey.GetReservedKey(pubkey))
+                return;
+            if (!pwallet->GetKey(pubkey.GetID(), PrivKey))
+                return;
+        }
         auto_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey(pubkey.GetID()));
         if (!pblocktemplate.get())
             return;

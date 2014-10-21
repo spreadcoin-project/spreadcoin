@@ -27,6 +27,7 @@ private:
 
     void restartMining(bool fGenerate);
     void timerEvent(QTimerEvent *event);
+    void updateUI();
 
 private slots:
 
