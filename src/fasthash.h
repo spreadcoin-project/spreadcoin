@@ -7,6 +7,8 @@ extern "C" void init_Xhash_contexts_noavxaes();
 
 inline bool CPUsupportsAVXandAES()
 {
+    printf("cpuid, eax = 1.\n");
+
     int eax, ebx, ecx, edx;
     __asm__ __volatile__ ("cpuid": "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx) : "a" ((int)1));
     int Mask =
@@ -14,6 +16,9 @@ inline bool CPUsupportsAVXandAES()
             (1 << 25) | // AES
             (1 << 27) | // AVX OS support
             (1 << 28) ; // AVX
+
+    printf("eax = %i, ebx = %i, ecx = %i, edx = %i.\n", eax, ebx, ecx, edx);
+
     return (ecx & Mask) == Mask;
 }
 
@@ -22,6 +27,8 @@ static bool g_CPUsupportsAVXandAES;
 inline void init_Xhash_contexts()
 {
     g_CPUsupportsAVXandAES = CPUsupportsAVXandAES();
+
+    printf("CPU supports AVX and AES = %s\n", g_CPUsupportsAVXandAES? "true" : "false");
 
     if (g_CPUsupportsAVXandAES)
         init_Xhash_contexts_avxaes();
