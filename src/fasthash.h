@@ -17,7 +17,7 @@ inline bool CPUsupportsAVXandAES()
             (1 << 27) | // AVX OS support
             (1 << 28) ; // AVX
 
-    printf("eax = %i, ebx = %i, ecx = %i, edx = %i.\n", eax, ebx, ecx, edx);
+    printf("eax = %u, ebx = %u, ecx = %u, edx = %u.\n", eax, ebx, ecx, edx);
 
     return (ecx & Mask) == Mask;
 }
