@@ -5341,7 +5341,7 @@ void FormatHashBuffers(CBlock* pblock, char* pmidstate, char* pdata, char* phash
 }
 
 
-bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
+bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey* preservekey)
 {
     uint256 hash = pblock->GetHash();
     uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
@@ -5362,7 +5362,8 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
             return error("SpreadCoinMiner : generated block is stale");
 
         // Remove key from key pool
-        reservekey.KeepKey();
+        if (preservekey)
+            preservekey->KeepKey();
 
         // Track how many getdata requests this block gets
         {
@@ -5473,7 +5474,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
                 {
                     // Found a solution
                     SetThreadPriority(THREAD_PRIORITY_NORMAL);
-                    CheckWork(pblock, *pwallet, reservekey);
+                    CheckWork(pblock, *pwallet, MiningKey.IsValid()? NULL : &reservekey);
                     SetThreadPriority(THREAD_PRIORITY_LOWEST);
                     break;
                 }

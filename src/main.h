@@ -207,7 +207,7 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& 
 /** Do mining precalculation */
 void FormatHashBuffers(CBlock* pblock, char* pmidstate, char* pdata, char* phash1);
 /** Check mined block */
-bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey);
+bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey* reservekey);
 /** Get the number of active peers */
 int GetNumBlocksOfPeers();
 /** Check whether we are doing an initial block download (synchronizing from disk or network) */

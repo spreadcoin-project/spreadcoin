@@ -296,7 +296,7 @@ Value getworkex(const Array& params, bool fHelp)
 
         pblock->hashMerkleRoot = pblock->BuildMerkleTree();
 
-        return CheckWork(pblock, *pwalletMain, reservekey);
+        return CheckWork(pblock, *pwalletMain, &reservekey);
     }
 }
 
@@ -414,7 +414,7 @@ Value getwork(const Array& params, bool fHelp)
         pblock->hashMerkleRoot = pblock->BuildMerkleTree();
 
         assert(pwalletMain != NULL);
-        return CheckWork(pblock, *pwalletMain, *pMiningKey);
+        return CheckWork(pblock, *pwalletMain, pMiningKey);
     }
 }
 
