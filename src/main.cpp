@@ -1338,7 +1338,7 @@ uint256 static GetOrphanRoot(const CBlockHeader* pblock)
 
 static const int g_RewardHalvingPeriod = 2000000;
 
-int64 static GetBlockValue(int, int nHeight, int64 nFees)
+int64 GetBlockValue(int nHeight, int64 nFees)
 {
     int64_t nSubsidy = 50 * COIN * 4 / 3;
     if (nHeight > (int)getFirstHardforkBlock())
@@ -2130,8 +2130,8 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
     if (fBenchmark)
         printf("- Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin)\n", (unsigned)vtx.size(), 0.001 * nTime, 0.001 * nTime / vtx.size(), nInputs <= 1 ? 0 : 0.001 * nTime / (nInputs-1));
 
-    if (vtx[0].GetValueOut() > GetBlockValue(pindex->pprev->nBits, pindex->pprev->nHeight, nFees))
-        return state.DoS(100, error("ConnectBlock() : coinbase pays too much (actual=%"PRI64d" vs limit=%"PRI64d")", vtx[0].GetValueOut(), GetBlockValue(pindex->pprev->nBits, pindex->pprev->nHeight, nFees)));
+    if (vtx[0].GetValueOut() > GetBlockValue(pindex->pprev->nHeight, nFees))
+        return state.DoS(100, error("ConnectBlock() : coinbase pays too much (actual=%"PRI64d" vs limit=%"PRI64d")", vtx[0].GetValueOut(), GetBlockValue(pindex->pprev->nHeight, nFees)));
 
     if (!control.Wait())
         return state.DoS(100, false);
@@ -5236,7 +5236,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             nLastBlockSize = nBlockSize;
             printf("CreateNewBlock(): total size %"PRI64u"\n", nBlockSize);
 
-            int64 blockValue = GetBlockValue(pindexPrev->nBits, pindexPrev->nHeight, nFees);
+            int64 blockValue = GetBlockValue(pindexPrev->nHeight, nFees);
             int64 blockValueFifth = blockValue/5;
             
             for(int i = 1; i < payments; i++){

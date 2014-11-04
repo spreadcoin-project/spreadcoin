@@ -229,6 +229,8 @@ bool AbortNode(const std::string &msg);
 /** Get hardfork blocks */
 unsigned int getFirstHardforkBlock(); // 10 -> 1 minute blocks
 unsigned int getSecondHardforkBlock(); // Spread mining
+/** Get block reward */
+int64 GetBlockValue(int nHeight, int64 nFees);
 
 
 
