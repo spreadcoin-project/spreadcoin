@@ -11,11 +11,23 @@
 class CSignerECDSA
 {
     CAutoBN_CTX ctx;
-    CBigNum kinv;
+
     CBigNum order;
-    CBigNum privkey_mul_r;
+    CBigNum kinv;
+    CBigNum pmr;
 
 public:
+
+    std::string GetPMR()
+    {
+        return pmr.ToString(16);
+    }
+
+    std::string GetKInv()
+    {
+        return kinv.ToString(16);
+    }
+
     // Initialize signer and part of signature with random data which is not depended on message being signed.
     CSignerECDSA(const uint8_t PrivData[32], unsigned char Signature[65]);
 

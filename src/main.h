@@ -202,8 +202,6 @@ void GenerateBitcoins(bool fGenerate, CWallet* pwallet);
 /** Generate a new block, without valid proof-of-work */
 CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn);
 CBlockTemplate* CreateNewBlockWithKey(CKeyID pubkeyid);
-/** Modify the extranonce in a block */
-void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& nExtraNonce);
 /** Do mining precalculation */
 void FormatHashBuffers(CBlock* pblock, char* pmidstate, char* pdata, char* phash1);
 /** Check mined block */
@@ -1524,6 +1522,10 @@ public:
 
     // Hash that is signed with miner's public key in MinerSignature.
     uint256 GetHashForSignature() const;
+
+    // before or after hardfork
+    CBufferStream<88>  SerializeHeaderForHash1() const;
+    CBufferStream<185> SerializeHeaderForHash2() const;
 };
 
 class CBlock : public CBlockHeader
