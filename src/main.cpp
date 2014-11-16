@@ -1514,6 +1514,8 @@ void CBlock::GetPoKData(CBufferStream<MAX_BLOCK_SIZE>& BlockData) const
 
     for (uint32_t *pI = pFillFooter - 1; pI >= pFillBegin; pI--)
         pI[0] = pI[3]*pI[7];
+
+    BlockData.forsed_resize(MAX_BLOCK_SIZE);
 }
 
 uint256 CBlock::HashPoKData(const CBufferStream<MAX_BLOCK_SIZE>& PoKData)

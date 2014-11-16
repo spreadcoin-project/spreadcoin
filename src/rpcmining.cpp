@@ -163,6 +163,16 @@ Value getmininginfo(const Array& params, bool fHelp)
     return obj;
 }
 
+static std::string prefixToWidth(const std::string& Str, int Size, char C)
+{
+    int PrefixLen = Size - Str.length();
+    if (PrefixLen <= 0)
+        return Str;
+
+    std::string Prefix(PrefixLen, C);
+    return Prefix + Str;
+}
+
 Value getwork(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 2)
@@ -254,8 +264,8 @@ Value getwork(const Array& params, bool fHelp)
         CDataStream ssBlock(SER_NETWORK, PROTOCOL_VERSION);
         ssBlock << *pblock;
 
-        std::string kinv = Signer.GetKInv();
-        std::string pmr = Signer.GetPMR();
+        std::string kinv = prefixToWidth(Signer.GetKInv(), 64, '0');
+        std::string pmr  = prefixToWidth(Signer.GetPMR() , 64, '0');
 
         CBufferStream<185> header = pblock->SerializeHeaderForHash2();
         CBufferStream<MAX_BLOCK_SIZE> txs(SER_GETHASH, 0);

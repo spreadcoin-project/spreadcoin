@@ -1128,6 +1128,8 @@ public:
 
     size_t size() const    { return end() - begin(); }
 
+    void forsed_resize(uint32_t new_size) { nWritePos = new_size; }
+
     //
     // Stream subset
     //
