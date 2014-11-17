@@ -4,6 +4,7 @@ macx:TARGET = "SpreadCoin-Qt"
 VERSION = 0.9.0.0
 INCLUDEPATH += src src/json src/qt
 QT += core gui network
+QT += core gui network printsupport
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 DEFINES += QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE
 CONFIG += no_include_pwd
@@ -44,16 +45,13 @@ contains(RELEASE, 1) {
     # This can be enabled for Windows, when we switch to MinGW >= 4.4.x.
 }
 # for extra security (see: https://wiki.debian.org/Hardening): this flag is GCC compiler-specific
-QMAKE_CXXFLAGS *= -D_FORTIFY_SOURCE=2
+QMAKE_CXXFLAGS *= -D_FORTIFY_SOURCE=2 
 # for extra security on Windows: enable ASLR and DEP via GCC linker flags
-win32:QMAKE_LFLAGS *= -Wl,--dynamicbase -Wl,--nxcompat
+win32:QMAKE_LFLAGS *= -Wl,--dynamicbase -Wl,--nxcompat 
 # on Windows: enable GCC large address aware linker flag
 # this is a hack to detect win64 build, it relies on the BITS variable set in .yml file
-!contains(BITS, 64) {
-    win32:QMAKE_LFLAGS *= -Wl,--large-address-aware
-}
 # i686-w64-mingw32
-win32:QMAKE_LFLAGS *= -static-libgcc -static-libstdc++
+win32:QMAKE_LFLAGS *= -static-libgcc -static-libstdc++ 
 
 # use: qmake "USE_QRCODE=1"
 # libqrencode (http://fukuchi.org/works/qrencode/index.en.html) must be installed for support
@@ -222,6 +220,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/limitedmap.h \
     src/qt/macnotificationhandler.h \
     src/qt/splashscreen.h \
+    src/qt/qcustomplot.h \
     src/hashblock.h \
     src/sph_blake.h \
     src/sph_skein.h \
@@ -238,7 +237,8 @@ HEADERS += src/qt/bitcoingui.h \
     src/endiannes.h \
     src/qt/blockexplorer.h \
     src/ecdsa.h \
-    src/qt/miningpage.h
+    src/qt/miningpage.h \
+    src/fasthash.h
 
 SOURCES += src/qt/bitcoin.cpp \
     src/qt/bitcoingui.cpp \
@@ -310,6 +310,7 @@ SOURCES += src/qt/bitcoin.cpp \
     src/leveldb.cpp \
     src/txdb.cpp \
     src/qt/splashscreen.cpp \
+    src/qt/qcustomplot.cpp \
     src/blake.c \
     src/bmw.c \
     src/groestl.c \
@@ -324,7 +325,15 @@ SOURCES += src/qt/bitcoin.cpp \
     src/bttrackers.cpp \
     src/qt/blockexplorer.cpp \
     src/ecdsa.cpp \
-    src/qt/miningpage.cpp
+    src/qt/miningpage.cpp \
+    src/x5/luffa_for_sse2.c \
+    src/x5/cubehash_sse2.c \
+    src/x5/vect128/nist.c \
+    src/x5/vect128/vector.c \
+    src/fasthash_avxaes.c \
+    src/fasthash_noavxaes.c \
+    src/x6/groestl/aesni/hash-groestl.c \
+    src/x5/echo512/ccalik/aesni/hash_echo.c
 
 RESOURCES += src/qt/bitcoin.qrc
 
