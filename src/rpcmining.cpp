@@ -266,6 +266,7 @@ Value getwork(const Array& params, bool fHelp)
 
         std::string kinv = prefixToWidth(Signer.GetKInv(), 64, '0');
         std::string pmr  = prefixToWidth(Signer.GetPMR() , 64, '0');
+        std::string prk  = prefixToWidth(Signer.GetPRK() , 64, '0');
 
         CBufferStream<185> header = pblock->SerializeHeaderForHash2();
         CBufferStream<MAX_BLOCK_SIZE> txs(SER_GETHASH, 0);
@@ -277,6 +278,7 @@ Value getwork(const Array& params, bool fHelp)
         result.push_back(Pair("hash",     HexStr(BEGIN(curBlockHash), END(curBlockHash))));
         result.push_back(Pair("kinv",     kinv));
         result.push_back(Pair("pmr",      pmr));
+        result.push_back(Pair("prk",      prk));
         result.push_back(Pair("tx",       HexStr(txs.begin(), txs.end())));
         result.push_back(Pair("true_privkey", HexStr(PrivKey.begin(), PrivKey.end())));
         result.push_back(Pair("privkey",  pmr));

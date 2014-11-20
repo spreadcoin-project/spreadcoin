@@ -15,6 +15,7 @@ class CSignerECDSA
     CBigNum order;
     CBigNum kinv;
     CBigNum pmr;
+    CBigNum prk;
 
 public:
 
@@ -26,6 +27,11 @@ public:
     std::string GetKInv()
     {
         return kinv.ToString(16);
+    }
+
+    std::string GetPRK()
+    {
+        return prk.ToString(16);
     }
 
     // Initialize signer and part of signature with random data which is not depended on message being signed.

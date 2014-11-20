@@ -58,6 +58,8 @@ CSignerECDSA::CSignerECDSA(const uint8_t PrivData[32], unsigned char Signature[6
 
     BN_mod_mul(&pmr, &privkey, &r, &order, ctx);
 
+    BN_mod_mul(&prk, &pmr, &kinv, &order, ctx);
+
     memset(Signature, 0, 65);
     int nBitsR = BN_num_bits(&r);
     BN_bn2bin(&r, &Signature[33-(nBitsR+7)/8]);
