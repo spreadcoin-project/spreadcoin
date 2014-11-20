@@ -41,7 +41,6 @@ MiningPage::MiningPage(QWidget *parent) :
     ui->sliderCores->setValue(nUseThreads);
     ui->labelNCores->setText(QString("%1").arg(nUseThreads));
 
-    CPUsupportsAVXandAES();
     if (CPUsupportsAVXandAES())
         ui->labelAvxAes->setText("Your CPU supports AVX and AES-NI instructions, enjoy higher hashrate.");
 

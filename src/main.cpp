@@ -5472,7 +5472,8 @@ void GenerateBitcoins(bool fGenerate, CWallet* pwallet)
 {
     static boost::thread_group* minerThreads = NULL;
 
-    init_Xhash_contexts();
+    if (fGenerate)
+        init_Xhash_contexts();
 
     int nThreads = GetArg("-genproclimit", -1);
     if (nThreads < 0)
