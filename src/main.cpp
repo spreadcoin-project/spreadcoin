@@ -97,12 +97,12 @@ int64 nMinimumInputValue = DUST_HARD_LIMIT;
 // Get hardfork blocks
 unsigned int getFirstHardforkBlock()
 {
-    return fTestNet? 0 : 2200;
+    return fTestNet? 50 : 2200;
 }
 
 unsigned int getSecondHardforkBlock()
 {
-    return fTestNet? 0 : 43000;
+    return fTestNet? 100 : 43000;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1339,7 +1339,7 @@ uint256 static GetOrphanRoot(const CBlockHeader* pblock)
 
 static const int g_RewardHalvingPeriod = 2000000;
 
-int64 static GetBlockValue(int, int nHeight, int64 nFees)
+int64 GetBlockValue(int nHeight, int64 nFees)
 {
     int64_t nSubsidy = 50 * COIN * 4 / 3;
     if (nHeight > (int)getFirstHardforkBlock())
@@ -1429,32 +1429,32 @@ uint256 CBlockHeader::GetHashForSignature() const
     return Hash(Header.begin(), Header.end());
 }
 
-static CBufferStream<88> SerializeHeaderForHash(const CBlockHeader& block)
+CBufferStream<88> CBlockHeader::SerializeHeaderForHash1() const
 {
     CBufferStream<88> Header(SER_GETHASH, 0);
-    Header << block.nVersion;
-    Header << block.hashPrevBlock;
-    Header << block.hashMerkleRoot;
-    Header << block.nTime;
-    Header << block.nBits;
-    Header << block.nHeight;
-    Header << block.nNonce;
+    Header << nVersion;
+    Header << hashPrevBlock;
+    Header << hashMerkleRoot;
+    Header << nTime;
+    Header << nBits;
+    Header << nHeight;
+    Header << nNonce;
     assert(Header.end() - Header.begin() == 88);
     return Header;
 }
 
-static CBufferStream<185> SerializeHeaderForHash2(const CBlockHeader& block)
+CBufferStream<185> CBlockHeader::SerializeHeaderForHash2() const
 {
     CBufferStream<185> Header(SER_GETHASH, 0);
-    Header << block.nVersion;
-    Header << block.hashPrevBlock;
-    Header << block.hashMerkleRoot;
-    Header << block.nTime;
-    Header << block.nBits;
-    Header << block.nHeight;
-    Header << block.nNonce;
-    Header << block.hashWholeBlock;
-    Header << block.MinerSignature;
+    Header << nVersion;
+    Header << hashPrevBlock;
+    Header << hashMerkleRoot;
+    Header << nTime;
+    Header << nBits;
+    Header << nHeight;
+    Header << nNonce;
+    Header << hashWholeBlock;
+    Header << MinerSignature;
     assert(Header.end() - Header.begin() == 185);
     return Header;
 }
@@ -1463,12 +1463,12 @@ uint256 CBlockHeader::GetHash() const
 {
     if (nHeight > getSecondHardforkBlock())
     {
-        CBufferStream<185> Header = SerializeHeaderForHash2(*this);
+        CBufferStream<185> Header = SerializeHeaderForHash2();
         return Hash(Header.begin(), Header.end());
     }
     else
     {
-        CBufferStream<88> Header = SerializeHeaderForHash(*this);
+        CBufferStream<88> Header = SerializeHeaderForHash1();
         return Hash(Header.begin(), Header.end());
     }
 }
@@ -1477,12 +1477,12 @@ uint256 CBlock::GetPoWHash() const
 {
     if (nHeight > getSecondHardforkBlock())
     {
-        CBufferStream<185> Header = SerializeHeaderForHash2(*this);
+        CBufferStream<185> Header = SerializeHeaderForHash2();
         return Hash9(Header.begin(), Header.end());
     }
     else
     {
-        CBufferStream<88> Header = SerializeHeaderForHash(*this);
+        CBufferStream<88> Header = SerializeHeaderForHash1();
         return Hash9(Header.begin(), Header.end());
     }
 }
@@ -1515,6 +1515,8 @@ void CBlock::GetPoKData(CBufferStream<MAX_BLOCK_SIZE>& BlockData) const
 
     for (uint32_t *pI = pFillFooter - 1; pI >= pFillBegin; pI--)
         pI[0] = pI[3]*pI[7];
+
+    BlockData.forsed_resize(MAX_BLOCK_SIZE);
 }
 
 uint256 CBlock::HashPoKData(const CBufferStream<MAX_BLOCK_SIZE>& PoKData)
@@ -2131,8 +2133,8 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
     if (fBenchmark)
         printf("- Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin)\n", (unsigned)vtx.size(), 0.001 * nTime, 0.001 * nTime / vtx.size(), nInputs <= 1 ? 0 : 0.001 * nTime / (nInputs-1));
 
-    if (vtx[0].GetValueOut() > GetBlockValue(pindex->pprev->nBits, pindex->pprev->nHeight, nFees))
-        return state.DoS(100, error("ConnectBlock() : coinbase pays too much (actual=%"PRI64d" vs limit=%"PRI64d")", vtx[0].GetValueOut(), GetBlockValue(pindex->pprev->nBits, pindex->pprev->nHeight, nFees)));
+    if (vtx[0].GetValueOut() > GetBlockValue(pindex->pprev->nHeight, nFees))
+        return state.DoS(100, error("ConnectBlock() : coinbase pays too much (actual=%"PRI64d" vs limit=%"PRI64d")", vtx[0].GetValueOut(), GetBlockValue(pindex->pprev->nHeight, nFees)));
 
     if (!control.Wait())
         return state.DoS(100, false);
@@ -3282,7 +3284,7 @@ static CBlock getGenesisBlock()
     block.hashPrevBlock = 0;
     block.hashMerkleRoot = block.BuildMerkleTree();
     block.nVersion = 1;
-    block.nTime    = fTestNet? 1413064838 : 1406620000;
+    block.nTime    = fTestNet? 1406620001 : 1406620000;
     block.nBits    = bnProofOfWorkLimit.GetCompact();
     block.nHeight  = 0;
 
@@ -4860,21 +4862,6 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
 // SpreadCoinMiner
 //
 
-int static FormatHashBlocks(void* pbuffer, unsigned int len)
-{
-    unsigned char* pdata = (unsigned char*)pbuffer;
-    unsigned int blocks = 1 + ((len + 8) / 64);
-    unsigned char* pend = pdata + 64 * blocks;
-    memset(pdata + len, 0, 64 * blocks - len);
-    pdata[len] = 0x80;
-    unsigned int bits = len * 8;
-    pend[-1] = (bits >> 0) & 0xff;
-    pend[-2] = (bits >> 8) & 0xff;
-    pend[-3] = (bits >> 16) & 0xff;
-    pend[-4] = (bits >> 24) & 0xff;
-    return blocks;
-}
-
 // Some explaining would be appreciated
 class COrphan
 {
@@ -5237,7 +5224,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             nLastBlockSize = nBlockSize;
             printf("CreateNewBlock(): total size %"PRI64u"\n", nBlockSize);
 
-            int64 blockValue = GetBlockValue(pindexPrev->nBits, pindexPrev->nHeight, nFees);
+            int64 blockValue = GetBlockValue(pindexPrev->nHeight, nFees);
             int64 blockValueFifth = blockValue/5;
             
             for(int i = 1; i < payments; i++){
@@ -5273,14 +5260,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
     return pblocktemplate.release();
 }
 
-
-CBlockTemplate* CreateNewBlockWithKey(CKeyID pubkeyid)
-{
-    CScript scriptPubKey = CScript() << pubkeyid << OP_CHECKSIG;
-    return CreateNewBlock(scriptPubKey);
-}
-
-void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& nExtraNonce)
+static void IncrementExtraNonce(CBlock* pblock, unsigned int& nExtraNonce)
 {
     // Update nExtraNonce
     static uint256 hashPrevBlock;
@@ -5296,53 +5276,18 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& 
     pblock->hashMerkleRoot = pblock->BuildMerkleTree();
 }
 
-
-void FormatHashBuffers(CBlock* pblock, char* pmidstate, char* pdata, char* phash1)
+CBlockTemplate* CreateNewBlockWithKey(CKeyID pubkeyid)
 {
-    //
-    // Pre-build hash buffers
-    //
-    struct
-    {
-        struct unnamed2
-        {
-            int nVersion;
-            uint256 hashPrevBlock;
-            uint256 hashMerkleRoot;
-            int64 nTime;
-            unsigned int nBits;
-            unsigned int nHeight;
-            unsigned int nNonce;
-        }
-        block;
-        unsigned char pchPadding0[64];
-        uint256 hash1;
-        unsigned char pchPadding1[64];
-    }
-    tmp;
-    memset(&tmp, 0, sizeof(tmp));
-
-    tmp.block.nVersion       = pblock->nVersion;
-    tmp.block.hashPrevBlock  = pblock->hashPrevBlock;
-    tmp.block.hashMerkleRoot = pblock->hashMerkleRoot;
-    tmp.block.nTime          = pblock->nTime;
-    tmp.block.nBits          = pblock->nBits;
-    tmp.block.nHeight        = pblock->nHeight;
-    tmp.block.nNonce         = pblock->nNonce;
-
-    FormatHashBlocks(&tmp.block, sizeof(tmp.block));
-    FormatHashBlocks(&tmp.hash1, sizeof(tmp.hash1));
-
-    // Byte swap all the input buffer
-    for (unsigned int i = 0; i < sizeof(tmp)/4; i++)
-        ((unsigned int*)&tmp)[i] = ByteReverse(((unsigned int*)&tmp)[i]);
-
-    memcpy(pdata, &tmp.block, 128);
-    memcpy(phash1, &tmp.hash1, 64);
+    CScript scriptPubKey = CScript() << pubkeyid << OP_CHECKSIG;
+    CBlockTemplate* pTemplate = CreateNewBlock(scriptPubKey);
+    if (!pTemplate)
+        return NULL;
+    static unsigned int nExtraNonce = 0;
+    IncrementExtraNonce(&pTemplate->block, nExtraNonce);
+    return pTemplate;
 }
 
-
-bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
+bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey* preservekey)
 {
     uint256 hash = pblock->GetHash();
     uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
@@ -5363,7 +5308,8 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
             return error("SpreadCoinMiner : generated block is stale");
 
         // Remove key from key pool
-        reservekey.KeepKey();
+        if (preservekey)
+            preservekey->KeepKey();
 
         // Track how many getdata requests this block gets
         {
@@ -5399,7 +5345,6 @@ void static SpreadCoinMiner(CWallet *pwallet)
 
     // Each thread has its own key and counter
     CReserveKey reservekey(pwallet);
-    unsigned int nExtraNonce = 0;
 
     try { loop {
        while (vNodes.empty())
@@ -5429,7 +5374,6 @@ void static SpreadCoinMiner(CWallet *pwallet)
         if (!pblocktemplate.get())
             return;
         CBlock *pblock = &pblocktemplate->block;
-        IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
         printf("Running SpreadCoinMiner with %"PRIszu" transactions in block (%u bytes)\n", pblock->vtx.size(),
                ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION));
@@ -5453,7 +5397,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
             memcpy(pNonce, &pblock->nNonce, sizeof(pblock->nNonce));
             pblock->hashWholeBlock = CBlock::HashPoKData(PoKData);
 
-            CBufferStream<185> Header = SerializeHeaderForHash2(*pblock);
+            CBufferStream<185> Header = pblock->SerializeHeaderForHash2();
             uint32_t* pNonce2 = (uint32_t*)(Header.begin() + 84);
 
             if (scanhash_X((uint32_t*)Header.begin(), (const uint32_t*)&hashTarget))
@@ -5461,7 +5405,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
                 // Found a solution
                 SetThreadPriority(THREAD_PRIORITY_NORMAL);
                 pblock->nNonce = *pNonce2;
-                CheckWork(pblock, *pwallet, reservekey);
+                CheckWork(pblock, *pwallet, MiningKey.IsValid()? NULL : &reservekey);
                 SetThreadPriority(THREAD_PRIORITY_LOWEST);
                 break;
             }

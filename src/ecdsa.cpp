@@ -56,7 +56,9 @@ CSignerECDSA::CSignerECDSA(const uint8_t PrivData[32], unsigned char Signature[6
     // compute the inverse of k
     BN_mod_inverse(&kinv, &kinv, &order, ctx);
 
-    BN_mod_mul(&privkey_mul_r, &privkey, &r, &order, ctx);
+    BN_mod_mul(&pmr, &privkey, &r, &order, ctx);
+
+    BN_mod_mul(&prk, &pmr, &kinv, &order, ctx);
 
     memset(Signature, 0, 65);
     int nBitsR = BN_num_bits(&r);
@@ -75,7 +77,7 @@ void CSignerECDSA::SignFast(const uint256 &hash, unsigned char Signature[65])
 
     // Spread-FIXME: replace with fixed-size arithmetic.
     CBigNum s;
-    BN_mod_add_quick(&s, &privkey_mul_r, &m, &order);
+    BN_mod_add_quick(&s, &pmr, &m, &order);
     BN_mod_mul(&s, &s, &kinv, &order, ctx);
 
     int nBitsS = BN_num_bits(&s);

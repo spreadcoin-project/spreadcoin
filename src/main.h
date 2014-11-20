@@ -202,12 +202,10 @@ void GenerateBitcoins(bool fGenerate, CWallet* pwallet);
 /** Generate a new block, without valid proof-of-work */
 CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn);
 CBlockTemplate* CreateNewBlockWithKey(CKeyID pubkeyid);
-/** Modify the extranonce in a block */
-void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& nExtraNonce);
 /** Do mining precalculation */
 void FormatHashBuffers(CBlock* pblock, char* pmidstate, char* pdata, char* phash1);
 /** Check mined block */
-bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey);
+bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey* reservekey);
 /** Get the number of active peers */
 int GetNumBlocksOfPeers();
 /** Check whether we are doing an initial block download (synchronizing from disk or network) */
@@ -229,6 +227,8 @@ bool AbortNode(const std::string &msg);
 /** Get hardfork blocks */
 unsigned int getFirstHardforkBlock(); // 10 -> 1 minute blocks
 unsigned int getSecondHardforkBlock(); // Spread mining
+/** Get block reward */
+int64 GetBlockValue(int nHeight, int64 nFees);
 
 
 
@@ -1522,6 +1522,10 @@ public:
 
     // Hash that is signed with miner's public key in MinerSignature.
     uint256 GetHashForSignature() const;
+
+    // before or after hardfork
+    CBufferStream<88>  SerializeHeaderForHash1() const;
+    CBufferStream<185> SerializeHeaderForHash2() const;
 };
 
 class CBlock : public CBlockHeader

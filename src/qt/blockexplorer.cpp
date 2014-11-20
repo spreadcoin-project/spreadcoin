@@ -191,6 +191,12 @@ std::string BlockToString(CBlockIndex* pBlock)
     }
     TxContent += "</table>";
 
+    int64_t Generated;
+    if (pBlock->nHeight == 0)
+        Generated = OutVolume;
+    else
+        Generated = GetBlockValue(pBlock->nHeight - 1, 0);
+
     std::string BlockContentCells[] =
     {
         _("Height"),      itostr(pBlock->nHeight),
@@ -198,7 +204,7 @@ std::string BlockToString(CBlockIndex* pBlock)
         _("Number of Transactions"), itostr(block.vtx.size()),
         _("Value Out"),   ValueToString(OutVolume),
         _("Fees"),        ValueToString(Fees),
-        _("Generated"),   ValueToString(Reward - Fees),
+        _("Generated"),   ValueToString(Generated),
         _("Timestamp"),   TimeToString(block.nTime),
         _("Difficulty"),  strprintf("%.4f", GetDifficulty(pBlock)),
         _("Bits"),        utostr(block.nBits),
