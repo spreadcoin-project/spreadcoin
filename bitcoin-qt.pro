@@ -4,6 +4,7 @@ macx:TARGET = "SpreadCoin-Qt"
 VERSION = 0.9.0.0
 INCLUDEPATH += src src/json src/qt
 QT += core gui network
+QT += core gui network printsupport
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 DEFINES += QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE
 CONFIG += no_include_pwd
@@ -222,6 +223,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/limitedmap.h \
     src/qt/macnotificationhandler.h \
     src/qt/splashscreen.h \
+    src/qt/qcustomplot.h \
     src/hashblock.h \
     src/sph_blake.h \
     src/sph_skein.h \
@@ -310,6 +312,7 @@ SOURCES += src/qt/bitcoin.cpp \
     src/leveldb.cpp \
     src/txdb.cpp \
     src/qt/splashscreen.cpp \
+    src/qt/qcustomplot.cpp \
     src/blake.c \
     src/bmw.c \
     src/groestl.c \
