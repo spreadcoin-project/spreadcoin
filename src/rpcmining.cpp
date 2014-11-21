@@ -7,6 +7,8 @@
 #include "db.h"
 #include "init.h"
 #include "bitcoinrpc.h"
+#include "wallet.h"
+#include "ecdsa.h"
 
 using namespace json_spirit;
 using namespace std;
@@ -161,12 +163,28 @@ Value getmininginfo(const Array& params, bool fHelp)
     return obj;
 }
 
-Value getworkex(const Array& params, bool fHelp)
+static std::string prefixToWidth(const std::string& Str, int Size, char C)
+{
+    int PrefixLen = Size - Str.length();
+    if (PrefixLen <= 0)
+        return Str;
+
+    std::string Prefix(PrefixLen, C);
+    return Prefix + Str;
+}
+
+Value getwork(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 2)
         throw runtime_error(
-            "getworkex [data, coinbase]\n"
-            "If [data, coinbase] is not specified, returns extended work data.\n"
+            "getwork [data, coinbase]\n"
+            "Returns work data.\n"
+            "\n"
+            "getwork [hash]\n"
+            "Returns new work data or true if no newer data available.\n"
+            "\n"
+            "getwork [data, coinbase]\n"
+            "Submit work.\n"
         );
 
     if (vNodes.empty())
@@ -175,83 +193,97 @@ Value getworkex(const Array& params, bool fHelp)
     if (IsInitialBlockDownload())
         throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "SpreadCoin is downloading blocks...");
 
-    typedef map<uint256, pair<CBlock*, CScript> > mapNewBlock_t;
-    static mapNewBlock_t mapNewBlock;    // FIXME: thread safety
-    static vector<CBlockTemplate*> vNewBlockTemplate;
-    static CReserveKey reservekey(pwalletMain);
+    static CBlockTemplate* pblocktemplate = NULL;
+    static uint256 curBlockHash = 0;
 
-    if (params.size() == 0)
+    vector<unsigned char> vchData;
+    if (params.size() >= 1)
+        vchData = ParseHex(params[0].get_str());
+
+    if (vchData.size() == 0 || vchData.size() == 32)
     {
-        // Update block
-        static unsigned int nTransactionsUpdatedLast;
-        static CBlockIndex* pindexPrev;
-        static int64 nStart;
-        static CBlockTemplate* pblocktemplate;
-        if (pindexPrev != pindexBest ||
-            (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 60))
+        std::string PrivAddress = GetArg("-miningprivkey", "");
+
+        CKey MiningKey;
+        if (!PrivAddress.empty())
         {
-            if (pindexPrev != pindexBest)
-            {
-                // Deallocate old blocks since they're obsolete now
-                mapNewBlock.clear();
-                BOOST_FOREACH(CBlockTemplate* pblocktemplate, vNewBlockTemplate)
-                    delete pblocktemplate;
-                vNewBlockTemplate.clear();
-            }
+            CBitcoinSecret Secret;
+            Secret.SetString(PrivAddress);
+            if (Secret.IsValid())
+                MiningKey = Secret.GetKey();
+        }
 
-            // Clear pindexPrev so future getworks make a new block, despite any failures from here on
-            pindexPrev = NULL;
+        CPubKey pubkey;
+        CKey PrivKey;
 
-            // Store the pindexBest used before CreateNewBlock, to avoid races
+        if (MiningKey.IsValid())
+        {
+            PrivKey = MiningKey;
+            pubkey = MiningKey.GetPubKey();
+        }
+        else
+        {
+            if (!pMiningKey->GetReservedKey(pubkey))
+                throw JSONRPCError(RPC_WALLET_ERROR, "Error: can't get new address");
+            if (!pwalletMain->GetKey(pubkey.GetID(), PrivKey))
+                throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: need to unlock the wallet");
+        }
+
+        // Update block
+        static unsigned int nTransactionsUpdatedLast = 0;
+        static CBlockIndex* pindexPrev = NULL;
+        static int64 nStart = 0;
+        if (pindexPrev != pindexBest || (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 20))
+        {
             nTransactionsUpdatedLast = nTransactionsUpdated;
-            CBlockIndex* pindexPrevNew = pindexBest;
+            pindexPrev = pindexBest;
             nStart = GetTime();
 
-            // Spread-FIXME: implement PRC mining
-            CPubKey pubkey;
-            pMiningKey->GetReservedKey(pubkey);
-
             // Create new block
+            delete pblocktemplate;
             pblocktemplate = CreateNewBlockWithKey(pubkey.GetID());
-            if (!pblocktemplate)
-                throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
-            vNewBlockTemplate.push_back(pblocktemplate);
 
-            // Need to update only after we know CreateNewBlock succeeded
-            pindexPrev = pindexPrevNew;
+            curBlockHash = pblocktemplate->block.GetHash();
         }
+        if (vchData.size() == 32)
+        {
+            if (curBlockHash == *(uint256*)&vchData[0])
+                return true;
+        }
+
         CBlock* pblock = &pblocktemplate->block; // pointer for convenience
+
+        CSignerECDSA Signer(PrivKey.begin(), pblock->MinerSignature.begin());
 
         // Update nTime
         pblock->UpdateTime(pindexPrev);
         pblock->nNonce = 0;
 
-        // Update nExtraNonce
-        static unsigned int nExtraNonce = 0;
-        IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
-
-        // Save
-        mapNewBlock[pblock->hashMerkleRoot] = make_pair(pblock, pblock->vtx[0].vin[0].scriptSig);
-
-        // Pre-build hash buffers
-        char pmidstate[32];
-        char pdata[128];
-        char phash1[64];
-        FormatHashBuffers(pblock, pmidstate, pdata, phash1);
-
         uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
 
-        CTransaction coinbaseTx = pblock->vtx[0];
-        std::vector<uint256> merkle = pblock->GetMerkleBranch(0);
+        CDataStream ssBlock(SER_NETWORK, PROTOCOL_VERSION);
+        ssBlock << *pblock;
+
+        std::string kinv = prefixToWidth(Signer.GetKInv(), 64, '0');
+        std::string pmr  = prefixToWidth(Signer.GetPMR() , 64, '0');
+        std::string prk  = prefixToWidth(Signer.GetPRK() , 64, '0');
+
+        CBufferStream<185> header = pblock->SerializeHeaderForHash2();
+        CBufferStream<MAX_BLOCK_SIZE> txs(SER_GETHASH, 0);
+        txs << pblock->vtx;
 
         Object result;
-        result.push_back(Pair("data",     HexStr(BEGIN(pdata), END(pdata))));
+        result.push_back(Pair("data",     HexStr(header.begin(), header.end())));
         result.push_back(Pair("target",   HexStr(BEGIN(hashTarget), END(hashTarget))));
+        result.push_back(Pair("hash",     HexStr(BEGIN(curBlockHash), END(curBlockHash))));
+        result.push_back(Pair("kinv",     kinv));
+        result.push_back(Pair("pmr",      pmr));
+        result.push_back(Pair("prk",      prk));
+        result.push_back(Pair("tx",       HexStr(txs.begin(), txs.end())));
+        result.push_back(Pair("true_privkey", HexStr(PrivKey.begin(), PrivKey.end())));
+        result.push_back(Pair("privkey",  pmr));
 
-        CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
-        ssTx << coinbaseTx;
-        result.push_back(Pair("coinbase", HexStr(ssTx.begin(), ssTx.end())));
-
+        std::vector<uint256> merkle = pblock->GetMerkleBranch(0);
         Array merkle_arr;
 
         BOOST_FOREACH(uint256 merkleh, merkle) {
@@ -263,159 +295,26 @@ Value getworkex(const Array& params, bool fHelp)
 
         return result;
     }
-    else
+    else if (vchData.size() == 185)
     {
         // Parse parameters
-        vector<unsigned char> vchData = ParseHex(params[0].get_str());
-        vector<unsigned char> coinbase;
+        CBlockHeader header;
+        CDataStream(vchData, SER_NETWORK, PROTOCOL_VERSION) >> header;
 
-        if(params.size() == 2)
-            coinbase = ParseHex(params[1].get_str());
-
-        if (vchData.size() != 128)
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter");
-            
-        CBlock* pdata = (CBlock*)&vchData[0];
-
-        // Byte reverse
-        for (int i = 0; i < 128/4; i++)
-            ((unsigned int*)pdata)[i] = ByteReverse(((unsigned int*)pdata)[i]);
-
-        // Get saved block
-        if (!mapNewBlock.count(pdata->hashMerkleRoot))
+        CBlock* pblock = &pblocktemplate->block;
+        if (header.hashPrevBlock != pblock->hashPrevBlock)
             return false;
-        CBlock* pblock = mapNewBlock[pdata->hashMerkleRoot].first;
+        *(CBlockHeader*)pblock = header;
 
-        pblock->nTime = pdata->nTime;
-        pblock->nNonce = pdata->nNonce;
-
-        if(coinbase.size() == 0)
-            pblock->vtx[0].vin[0].scriptSig = mapNewBlock[pdata->hashMerkleRoot].second;
-        else
-            CDataStream(coinbase, SER_NETWORK, PROTOCOL_VERSION) >> pblock->vtx[0];
-
-        pblock->hashMerkleRoot = pblock->BuildMerkleTree();
-
-        return CheckWork(pblock, *pwalletMain, reservekey);
-    }
-}
-
-
-Value getwork(const Array& params, bool fHelp)
-{
-    if (fHelp || params.size() > 1)
-        throw runtime_error(
-            "getwork [data]\n"
-            "If [data] is not specified, returns formatted hash data to work on:\n"
-            "  \"midstate\" : precomputed hash state after hashing the first half of the data (DEPRECATED)\n" // deprecated
-            "  \"data\" : block data\n"
-            "  \"hash1\" : formatted hash buffer for second hash (DEPRECATED)\n" // deprecated
-            "  \"target\" : little endian hash target\n"
-            "If [data] is specified, tries to solve the block and returns true if it was successful.");
-
-    if (vNodes.empty())
-        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "SpreadCoin is not connected!");
-
-    if (IsInitialBlockDownload())
-        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "SpreadCoin is downloading blocks...");
-
-    typedef map<uint256, pair<CBlock*, CScript> > mapNewBlock_t;
-    static mapNewBlock_t mapNewBlock;    // FIXME: thread safety
-    static vector<CBlockTemplate*> vNewBlockTemplate;
-
-    if (params.size() == 0)
-    {
-        // Update block
-        static unsigned int nTransactionsUpdatedLast;
-        static CBlockIndex* pindexPrev;
-        static int64 nStart;
-        static CBlockTemplate* pblocktemplate;
-        if (pindexPrev != pindexBest ||
-            (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 60))
+        if (params.size() == 2)
         {
-            if (pindexPrev != pindexBest)
-            {
-                // Deallocate old blocks since they're obsolete now
-                mapNewBlock.clear();
-                BOOST_FOREACH(CBlockTemplate* pblocktemplate, vNewBlockTemplate)
-                    delete pblocktemplate;
-                vNewBlockTemplate.clear();
-            }
-
-            // Clear pindexPrev so future getworks make a new block, despite any failures from here on
-            pindexPrev = NULL;
-
-            // Store the pindexBest used before CreateNewBlock, to avoid races
-            nTransactionsUpdatedLast = nTransactionsUpdated;
-            CBlockIndex* pindexPrevNew = pindexBest;
-            nStart = GetTime();
-
-            // Spread-FIXME: implement PRC mining
-            CPubKey pubkey;
-            pMiningKey->GetReservedKey(pubkey);
-
-            // Create new block
-            pblocktemplate = CreateNewBlockWithKey(pubkey.GetID());
-            if (!pblocktemplate)
-                throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
-            vNewBlockTemplate.push_back(pblocktemplate);
-
-            // Need to update only after we know CreateNewBlock succeeded
-            pindexPrev = pindexPrevNew;
+            vector<unsigned char> coinbase = ParseHex(params[1].get_str());
+            CDataStream(coinbase, SER_NETWORK, PROTOCOL_VERSION) >> pblock->vtx[0];
         }
-        CBlock* pblock = &pblocktemplate->block; // pointer for convenience
 
-        // Update nTime
-        pblock->UpdateTime(pindexPrev);
-        pblock->nNonce = 0;
-
-        // Update nExtraNonce
-        static unsigned int nExtraNonce = 0;
-        IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
-
-        // Save
-        mapNewBlock[pblock->hashMerkleRoot] = make_pair(pblock, pblock->vtx[0].vin[0].scriptSig);
-
-        // Pre-build hash buffers
-        char pmidstate[32];
-        char pdata[128];
-        char phash1[64];
-        FormatHashBuffers(pblock, pmidstate, pdata, phash1);
-
-        uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
-
-        Object result;
-        result.push_back(Pair("midstate", HexStr(BEGIN(pmidstate), END(pmidstate)))); // deprecated
-        result.push_back(Pair("data",     HexStr(BEGIN(pdata), END(pdata))));
-        result.push_back(Pair("hash1",    HexStr(BEGIN(phash1), END(phash1)))); // deprecated
-        result.push_back(Pair("target",   HexStr(BEGIN(hashTarget), END(hashTarget))));
-        return result;
+        return CheckWork(pblock, *pwalletMain, pMiningKey);
     }
-    else
-    {
-        // Parse parameters
-        vector<unsigned char> vchData = ParseHex(params[0].get_str());
-        if (vchData.size() != 128)
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter");
-        CBlock* pdata = (CBlock*)&vchData[0];
-
-        // Byte reverse
-        for (int i = 0; i < 128/4; i++)
-            ((unsigned int*)pdata)[i] = ByteReverse(((unsigned int*)pdata)[i]);
-
-        // Get saved block
-        if (!mapNewBlock.count(pdata->hashMerkleRoot))
-            return false;
-        CBlock* pblock = mapNewBlock[pdata->hashMerkleRoot].first;
-
-        pblock->nTime = pdata->nTime;
-        pblock->nNonce = pdata->nNonce;
-        pblock->vtx[0].vin[0].scriptSig = mapNewBlock[pdata->hashMerkleRoot].second;
-        pblock->hashMerkleRoot = pblock->BuildMerkleTree();
-
-        assert(pwalletMain != NULL);
-        return CheckWork(pblock, *pwalletMain, *pMiningKey);
-    }
+    throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter");
 }
 
 

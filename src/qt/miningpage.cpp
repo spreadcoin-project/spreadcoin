@@ -22,6 +22,19 @@ MiningPage::MiningPage(QWidget *parent) :
     if (nUseThreads < 0)
          nUseThreads = nThreads;
 
+    std::string PrivAddress = GetArg("-miningprivkey", "");
+    if (!PrivAddress.empty())
+    {
+        CBitcoinSecret Secret;
+        Secret.SetString(PrivAddress);
+        if (Secret.IsValid())
+        {
+            CBitcoinAddress Address;
+            Address.Set(Secret.GetKey().GetPubKey().GetID());
+            ui->labelAddress->setText(QString("All mined coins will go to to %1").arg(Address.ToString().c_str()));
+        }
+    }
+
     ui->sliderCores->setMinimum(1);
     ui->sliderCores->setMaximum(nThreads);
     ui->sliderCores->setValue(nUseThreads);
@@ -30,6 +43,7 @@ MiningPage::MiningPage(QWidget *parent) :
     connect(ui->sliderCores, SIGNAL(valueChanged(int)), this, SLOT(changeNumberOfCores(int)));
     connect(ui->pushSwitchMining, SIGNAL(clicked()), this, SLOT(switchMining()));
 
+    updateUI();
     startTimer(500);
 }
 
@@ -43,9 +57,24 @@ void MiningPage::setModel(WalletModel *model)
     this->model = model;
 }
 
+void MiningPage::updateUI()
+{
+    int nThreads = boost::thread::hardware_concurrency();
+
+    int nUseThreads = GetArg("-genproclimit", -1);
+    if (nUseThreads < 0)
+        nUseThreads = nThreads;
+
+
+    ui->labelNCores->setText(QString("%1").arg(nUseThreads));
+    ui->pushSwitchMining->setText(GetBoolArg("-gen", false)? tr("Stop mining") : tr("Start mining"));
+}
+
 void MiningPage::restartMining(bool fGenerate)
 {
     int nThreads = ui->sliderCores->value();
+
+    mapArgs["-genproclimit"] = QString("%1").arg(nThreads).toUtf8().data();
 
     // unlock wallet before mining
     if (fGenerate && !unlockContext.get())
@@ -67,8 +96,7 @@ void MiningPage::restartMining(bool fGenerate)
     if (!fGenerate)
         unlockContext.reset(NULL);
 
-    ui->labelNCores->setText(QString("%1").arg(nThreads));
-    ui->pushSwitchMining->setText(fGenerate? tr("Stop mining") : tr("Start mining"));
+    updateUI();
 }
 
 void MiningPage::changeNumberOfCores(int i)
@@ -135,6 +163,21 @@ static QString formatTimeInterval(CBigNum t)
     }
 }
 
+static QString formatHashrate(int64 n)
+{
+    if (n == 0)
+        return "0 H/s";
+
+    int i = (int)floor(log(n)/log(1000));
+    float v = n*pow(1000.0f, -i);
+
+    QString prefix = "";
+    if (i >= 1 && i < 9)
+        prefix = " kMGTPEZY"[i];
+
+    return QString("%1 %2H/s").arg(v, 0, 'f', 2).arg(prefix);
+}
+
 void MiningPage::timerEvent(QTimerEvent *)
 {
     int64 NetworkHashrate = GetNetworkHashPS(120, -1).get_int64();
@@ -151,7 +194,7 @@ void MiningPage::timerEvent(QTimerEvent *)
         NextBlockTime = formatTimeInterval(ExpectedTime);
     }
 
-    ui->labelNethashrate->setText(QString("%1 H/s").arg(NetworkHashrate));
-    ui->labelYourHashrate->setText(QString("%1 H/s").arg(Hashrate));
+    ui->labelNethashrate->setText(formatHashrate(NetworkHashrate));
+    ui->labelYourHashrate->setText(formatHashrate(Hashrate));
     ui->labelNextBlock->setText(NextBlockTime);
 }
