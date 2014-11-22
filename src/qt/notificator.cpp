@@ -21,9 +21,6 @@
 #include "macnotificationhandler.h"
 #endif
 
-// https://wiki.ubuntu.com/NotificationDevelopmentGuidelines recommends at least 128
-const int FREEDESKTOP_NOTIFICATION_ICON_SIZE = 128;
-
 Notificator::Notificator(const QString &programName, QSystemTrayIcon *trayicon, QWidget *parent):
     QObject(parent),
     parent(parent),

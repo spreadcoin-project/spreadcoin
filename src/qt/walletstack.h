@@ -101,6 +101,9 @@ public slots:
      @see WalletModel::EncryptionStatus
      */
     void setEncryptionStatus();
+
+    /** Update the plot on the overview (home) page */
+    void updatePlot();
 };
 
 #endif // WALLETSTACK_H

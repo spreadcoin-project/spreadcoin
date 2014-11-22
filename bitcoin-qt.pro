@@ -225,6 +225,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/limitedmap.h \
     src/qt/macnotificationhandler.h \
     src/qt/splashscreen.h \
+    src/qt/qcustomplot.h \
     src/hashblock.h \
     src/sph_blake.h \
     src/sph_skein.h \
@@ -314,6 +315,7 @@ SOURCES += src/qt/bitcoin.cpp \
     src/leveldb.cpp \
     src/txdb.cpp \
     src/qt/splashscreen.cpp \
+    src/qt/qcustomplot.cpp \
     src/blake.c \
     src/bmw.c \
     src/groestl.c \
