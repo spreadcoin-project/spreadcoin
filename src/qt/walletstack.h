@@ -103,7 +103,7 @@ public slots:
     void setEncryptionStatus();
 
     /** Update the plot on the overview (home) page */
-    void updatePlot(int count);
+    void updatePlot();
 };
 
 #endif // WALLETSTACK_H

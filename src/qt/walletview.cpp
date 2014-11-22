@@ -285,8 +285,8 @@ void WalletView::unlockWallet()
     }
 }
 
-void WalletView::updatePlot(int count)
+void WalletView::updatePlot()
 {
-    overviewPage->updatePlot(count);
+    overviewPage->updatePlot();
 }
 

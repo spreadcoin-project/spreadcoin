@@ -128,14 +128,12 @@ OverviewPage::OverviewPage(QWidget *parent) :
         // create graph
         ui->diffplot->addGraph();
 
-        // Argh can't get the background to work.
-        //QPixmap background = QPixmap(":/images/splash_testnet");
-        //ui->diffplot->setBackground(background);
-        //ui->diffplot->setBackground(QBrush(QWidget::palette().color(this->backgroundRole())));
+        // Use usual background
+        ui->diffplot->setBackground(QBrush(QWidget::palette().color(this->backgroundRole())));
 
         // give the axes some labels:
-        ui->diffplot->xAxis->setLabel("Blocks");
-        ui->diffplot->yAxis->setLabel("Difficulty");
+        ui->diffplot->xAxis->setLabel(tr("Blocks"));
+        ui->diffplot->yAxis->setLabel(tr("Difficulty"));
 
         // set the pens
         ui->diffplot->graph(0)->setPen(QPen(QColor(76, 76, 229)));
@@ -152,14 +150,12 @@ OverviewPage::OverviewPage(QWidget *parent) :
     }
 }
 
-void OverviewPage::updatePlot(int count)
+void OverviewPage::updatePlot()
 {
 	static int64_t lastUpdate = 0;
     // Double Check to make sure we don't try to update the plot when it is disabled
     if(!GetBoolArg("-chart", true)) { return; }
     if (GetTime() - lastUpdate < 60) { return; } // This is just so it doesn't redraw rapidly during syncing
-	
-    // if(fDebug) { printf("Plot: Getting Ready: pidnexBest: %p\n", pindexBest); }
 
     int numLookBack = 4320;
     double diffMax = 0;
@@ -176,19 +172,9 @@ void OverviewPage::updatePlot(int count)
     vX.resize(numLookBack);
     vY.resize(numLookBack);
 
-    /*
-    if(fDebug) {
-        if(height != pindex->nHeight) {
-            printf("Plot: Warning: nBestHeight and pindexBest->nHeight don't match: %d:%d:\n", height, pindex->nHeight);
-        }
-    }
-
-    if(fDebug) { printf("Plot: Reading blockchain\n"); }
-    */
     CBlockIndex* itr = pindex;
     while(i >= 0 && itr != NULL)
     {
-        // if(fDebug) { printf("Plot: Processing block: %d - pprev: %p\n", itr->nHeight, itr->pprev); }
         vX[i] = itr->nHeight;
         vY[i] = GetDifficulty(itr);
         diffMax = std::max<double>(diffMax, vY[i]);
@@ -197,8 +183,6 @@ void OverviewPage::updatePlot(int count)
         i--;
         x--;
     }
-
-    // if(fDebug) { printf("Plot: Drawing plot\n"); }
 
     ui->diffplot->graph(0)->setData(vX, vY);
 
@@ -213,7 +197,6 @@ void OverviewPage::updatePlot(int count)
 
     ui->diffplot->replot();
 
-    // if(fDebug) { printf("Plot: Done!\n"); }
     lastUpdate = GetTime();
 }
 

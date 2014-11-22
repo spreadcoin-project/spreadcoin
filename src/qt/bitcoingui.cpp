@@ -561,7 +561,7 @@ void BitcoinGUI::setNumBlocks(int count, int nTotalBlocks)
     // if(fDebug){ printf("NumBlocks: %d : %d\n", count, nTotalBlocks); }
     if(GetBoolArg("-chart", true) && count > 0 && nTotalBlocks > 0)
     {
-        walletFrame->updatePlot(count);
+        walletFrame->updatePlot();
     }
 
     // Acquire current block source

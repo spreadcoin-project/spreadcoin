@@ -167,11 +167,11 @@ void WalletStack::setCurrentWallet(const QString& name)
     walletView->setEncryptionStatus();
 }
 
-void WalletStack::updatePlot(int count)
+void WalletStack::updatePlot()
 {
     //we can't be sure that the view has loaded, so this needs
     //to be loaded in a manner that fails gracefully
     QMap<QString, WalletView*>::const_iterator i;
     for (i = mapWalletViews.constBegin(); i != mapWalletViews.constEnd(); ++i)
-        i.value()->updatePlot(count);         
+        i.value()->updatePlot();
 }
