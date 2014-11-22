@@ -13,7 +13,6 @@
 #include "checkqueue.h"
 #include "ecdsa.h"
 #include <boost/algorithm/string/replace.hpp>
-#include <boost/algorithm/clamp.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/lexical_cast.hpp>
@@ -1366,6 +1365,11 @@ static uint32_t invertCompact(uint32_t nBits)
     return (nSize2 << 24) | nWord2;
 }
 
+static int clampTimespan(int val, int lo, int hi)
+{
+    return (val < lo)? lo : hi < val? hi : val;
+}
+
 unsigned int static GetNextWorkRequired(const CBlockIndex* pLastBlock, const CBlockHeader *)
 {
     const int nTargetSpacing = (pLastBlock->nHeight > (int)getFirstHardforkBlock())? 60 : 600; // SpreadCoin: 1 minute after block 2200
@@ -1388,7 +1392,7 @@ unsigned int static GetNextWorkRequired(const CBlockIndex* pLastBlock, const CBl
     }
     bnNew = (CBigNum(nInterval)<<256) / bnNew;
 
-    const int nActualTimespan = boost::algorithm::clamp(pLastBlock->GetBlockTime() - pCurBlock->GetBlockTime(), nTargetTimespan/3, nTargetTimespan*3);
+    const int nActualTimespan = clampTimespan(pLastBlock->GetBlockTime() - pCurBlock->GetBlockTime(), nTargetTimespan/3, nTargetTimespan*3);
 
     // Retarget
     bnNew *= nActualTimespan;
