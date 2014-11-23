@@ -25,7 +25,7 @@ remotes:
 - "url": "https://github.com/spreadcoin-project/spreadcoin.git"
   "dir": "spreadcoin"
 files:
-- "bitcoin-deps-linux64-gitian-r6.zip"
+- "bitcoin-deps-linux64-gitian-r7.zip"
 - "boost-linux64-1.55.0-gitian-r1.zip"
 - "qt-linux64-4.6.4-gitian-r1.tar.gz"
 - "zlib-1.2.8.tar.gz"
@@ -52,7 +52,7 @@ script: |
   #
   mkdir -p $STAGING
   cd $STAGING
-  unzip ../build/bitcoin-deps-linux${GBUILD_BITS}-gitian-r6.zip
+  unzip ../build/bitcoin-deps-linux${GBUILD_BITS}-gitian-r7.zip
   unzip ../build/boost-linux${GBUILD_BITS}-1.55.0-gitian-r1.zip
   tar -zxf ../build/qt-linux${GBUILD_BITS}-4.6.4-gitian-r1.tar.gz
   cd ../build

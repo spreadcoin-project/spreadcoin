@@ -9,9 +9,11 @@
 #include "transactionfilterproxy.h"
 #include "guiutil.h"
 #include "guiconstants.h"
+#ifndef Q_MOC_RUN
 #include "main.h"
 #include "bitcoinrpc.h"
 #include "util.h"
+#endif
 
 #include <QAbstractItemDelegate>
 #include <QPainter>
