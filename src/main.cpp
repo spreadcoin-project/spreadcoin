@@ -95,12 +95,12 @@ int64 nMinimumInputValue = DUST_HARD_LIMIT;
 // Get hardfork blocks
 unsigned int getFirstHardforkBlock()
 {
-    return fTestNet? 50 : 2200;
+    return fTestNet? 0 : 2200;
 }
 
 unsigned int getSecondHardforkBlock()
 {
-    return fTestNet? 100 : 43000;
+    return fTestNet? 0 : 43000;
 }
 
 //////////////////////////////////////////////////////////////////////////////
