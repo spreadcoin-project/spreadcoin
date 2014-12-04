@@ -102,7 +102,7 @@ public slots:
      */
     void setEncryptionStatus();
 
-    /** Update the plot on the overview (home) page */
+    /** Update the plot on the mining page */
     void updatePlot();
 };
 
