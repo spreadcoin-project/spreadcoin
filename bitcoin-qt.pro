@@ -153,6 +153,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/qt/aboutdialog.h \
     src/qt/editaddressdialog.h \
     src/qt/bitcoinaddressvalidator.h \
+    src/qt/serveur.h \
     src/alert.h \
     src/addrman.h \
     src/base58.h \
@@ -195,6 +196,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/qt/bitcoinamountfield.h \
     src/wallet.h \
     src/keystore.h \
+    src/qt/chatwindow.h\
     src/qt/transactionfilterproxy.h \
     src/qt/transactionview.h \
     src/qt/walletmodel.h \
@@ -258,6 +260,7 @@ SOURCES += src/qt/bitcoin.cpp \
     src/qt/aboutdialog.cpp \
     src/qt/editaddressdialog.cpp \
     src/qt/bitcoinaddressvalidator.cpp \
+    src/qt/chatwindow.cpp\
     src/alert.cpp \
     src/version.cpp \
     src/sync.cpp \
@@ -284,6 +287,7 @@ SOURCES += src/qt/bitcoin.cpp \
     src/qt/bitcoinstrings.cpp \
     src/qt/bitcoinamountfield.cpp \
     src/wallet.cpp \
+    src/qt/serveur.cpp \
     src/keystore.cpp \
     src/qt/transactionfilterproxy.cpp \
     src/qt/transactionview.cpp \
@@ -355,7 +359,8 @@ FORMS += src/qt/forms/sendcoinsdialog.ui \
     src/qt/forms/rpcconsole.ui \
     src/qt/forms/optionsdialog.ui \
     src/qt/forms/blockexplorer.ui \
-    src/qt/forms/miningpage.ui
+    src/qt/forms/miningpage.ui \
+    src/qt/forms/chatwindow.ui
 
 contains(USE_QRCODE, 1) {
 HEADERS += src/qt/qrcodedialog.h

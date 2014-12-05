@@ -20,6 +20,7 @@ class Notificator;
 class RPCConsole;
 class BlockExplorer;
 class MiningPage;
+class ChatWindow;  // NEW IRC
 
 class CWallet;
 
@@ -107,6 +108,7 @@ private:
     QAction *openRPCConsoleAction;
     QAction *openInfoAction;
     QAction *openBlockExplorerAction;
+    QAction *openChatWindowAction;
     QAction *miningAction;
 
     QSystemTrayIcon *trayIcon;
@@ -114,6 +116,7 @@ private:
     TransactionView *transactionView;
     RPCConsole *rpcConsole;
     BlockExplorer* blockExplorer;
+    ChatWindow *chatWindow;
 
     QMovie *syncIconMovie;
     /** Keep track of previous number of blocks, to detect progress */

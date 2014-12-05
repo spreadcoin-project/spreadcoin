@@ -23,6 +23,7 @@
 #include "guiutil.h"
 #include "rpcconsole.h"
 #include "blockexplorer.h"
+#include "chatwindow.h"
 #include "ui_interface.h"
 #include "wallet.h"
 #include "init.h"
@@ -68,6 +69,7 @@ BitcoinGUI::BitcoinGUI(QWidget *parent) :
     notificator(0),
     rpcConsole(0),
     blockExplorer(0),
+    chatWindow(0),
     prevBlocks(0)
 {
     restoreWindowGeometry();
@@ -146,6 +148,9 @@ BitcoinGUI::BitcoinGUI(QWidget *parent) :
     rpcConsole = new RPCConsole(this);
     connect(openRPCConsoleAction, SIGNAL(triggered()), rpcConsole, SLOT(showConsole()));
     connect(openInfoAction, SIGNAL(triggered()), rpcConsole, SLOT(showInfo()));
+
+    chatWindow = new ChatWindow(this);    // IRC
+    connect(openChatWindowAction, SIGNAL(triggered()), chatWindow, SLOT(show()));
 
     blockExplorer = new BlockExplorer(this);
     connect(openBlockExplorerAction, SIGNAL(triggered()), blockExplorer, SLOT(show()));
@@ -263,6 +268,9 @@ void BitcoinGUI::createActions()
     openBlockExplorerAction = new QAction(QIcon(":/icons/explorer"), tr("Blockchain Explorer"), this);
     openBlockExplorerAction->setStatusTip(tr("Open blockchain explorer"));
 
+    openChatWindowAction = new QAction(QIcon(":/icons/social"), tr("Chat Window"), this);
+    openChatWindowAction->setStatusTip(tr("Open chat window"));
+
     connect(quitAction, SIGNAL(triggered()), qApp, SLOT(quit()));
     connect(aboutAction, SIGNAL(triggered()), this, SLOT(aboutClicked()));
     connect(aboutQtAction, SIGNAL(triggered()), qApp, SLOT(aboutQt()));
@@ -303,6 +311,7 @@ void BitcoinGUI::createMenuBar()
     tools->addAction(openInfoAction);
     tools->addAction(openRPCConsoleAction);
     tools->addAction(openBlockExplorerAction);
+    tools->addAction(openChatWindowAction);
 
     QMenu *help = appMenuBar->addMenu(tr("&About"));
     help->addAction(aboutAction);
@@ -443,6 +452,7 @@ void BitcoinGUI::createTrayIconMenu()
     trayIconMenu->addAction(openInfoAction);
     trayIconMenu->addAction(openRPCConsoleAction);
     trayIconMenu->addAction(openBlockExplorerAction);
+    trayIconMenu->addAction(openChatWindowAction);
 #ifndef Q_OS_MAC // This is built-in on Mac
     trayIconMenu->addSeparator();
     trayIconMenu->addAction(quitAction);
