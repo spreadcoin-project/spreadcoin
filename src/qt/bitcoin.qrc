@@ -43,6 +43,13 @@
         <file alias="console">res/icons/console.png</file>
         <file alias="info">res/icons/info.png</file>
         <file alias="back">res/icons/back.png</file>
+        <file alias="bitcointalk">res/icons/bitcointalk.png</file>
+        <file alias="cryptocointalk">res/icons/cryptocointalk.png</file>
+        <file alias="reddit">res/icons/reddit.png</file>
+        <file alias="facebook">res/icons/face.png</file>
+        <file alias="facebookoff">res/icons/faceoff.png</file>
+        <file alias="twitter">res/icons/twitter.png</file>
+        <file alias="social">res/icons/social.png</file>
     </qresource>
     <qresource prefix="/images">
         <file alias="about">res/images/about.png</file>
