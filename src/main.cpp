@@ -16,6 +16,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/unordered_set.hpp>
 
 #include <algorithm>
 #include <boost/assign/list_of.hpp>
@@ -101,6 +102,29 @@ unsigned int getFirstHardforkBlock()
 unsigned int getSecondHardforkBlock()
 {
     return fTestNet? 0 : 43000;
+}
+
+//
+// Cache checked blocks
+//
+CCriticalSection cs_checkedBlocks;
+boost::unordered_set<uint256> checkedBlocks;
+
+std::size_t hash_value(const uint256& b)
+{
+    return (size_t)b.Get64(0);
+}
+
+bool IsChecked(uint256 hashBlock)
+{
+    LOCK(cs_checkedBlocks);
+    return !!checkedBlocks.count(hashBlock);
+}
+
+void MarkAsChecked(uint256 hashBlock)
+{
+    LOCK(cs_checkedBlocks);
+    checkedBlocks.insert(hashBlock);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1541,8 +1565,10 @@ uint256 CBlock::HashPoKData(const CBufferStream<MAX_BLOCK_SIZE>& PoKData)
     return hash;
 }
 
-bool CBlock::CheckProofOfWorkLite() const
+bool CBlock::CheckProofOfWorkLite(bool UseCache) const
 {
+    uint256 hash = GetHash();
+
     CBigNum bnTarget;
     bnTarget.SetCompact(nBits);
 
@@ -1551,7 +1577,7 @@ bool CBlock::CheckProofOfWorkLite() const
         return error("CheckProofOfWork() : nBits below minimum work");
 
     // Check proof of work matches claimed amount (except for the genesis block)
-    if (GetPoWHash() > bnTarget.getuint256() && GetHash() != hashGenesisBlock)
+    if (GetPoWHash() > bnTarget.getuint256() && hash != hashGenesisBlock)
         return error("CheckProofOfWork() : hash doesn't match nBits");
 
     if (nHeight <= getSecondHardforkBlock())
@@ -1583,6 +1609,9 @@ bool CBlock::CheckProofOfWorkLite() const
     if (!Address.GetKeyID(KeyID))
         return error("CheckSignature() : coinbase address is not pubkeyhash");
 
+    if (UseCache && IsChecked(hash))
+        return true;
+
     // Check miner's signature
     if (GetRewardAddress().GetID() != KeyID)
         return error("CheckSignature() : incorrect signature");
@@ -1592,8 +1621,12 @@ bool CBlock::CheckProofOfWorkLite() const
 
 bool CBlock::CheckProofOfWork() const
 {
+    uint256 hash = GetHash();
+    if (IsChecked(hash))
+        return true;
+
     // Check everything except hashWholeBlock
-    if (!CheckProofOfWorkLite())
+    if (!CheckProofOfWorkLite(false))
         return false;
 
     if (nHeight <= getSecondHardforkBlock())
@@ -1605,6 +1638,7 @@ bool CBlock::CheckProofOfWork() const
     if (HashPoKData(PoKData) != hashWholeBlock)
         return error("CheckProofOfWork() : whole block hash mismatch");
 
+    MarkAsChecked(hash);
     return true;
 }
 
