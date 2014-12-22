@@ -1375,6 +1375,19 @@ int64 GetBlockValue(int nHeight, int64 nFees)
     return nSubsidy + nFees;
 }
 
+int64 GetTotalSupply()
+{
+    static int PrevBestHeight = 0;
+    static int64 Supply = 0;
+
+    for (int i = PrevBestHeight; i < nBestHeight; i++)
+    {
+        Supply += GetBlockValue(i, 0);
+        PrevBestHeight = nBestHeight;
+    }
+    return Supply;
+}
+
 static uint32_t invertCompact(uint32_t nBits)
 {
     uint8_t nSize = nBits >> 24;
