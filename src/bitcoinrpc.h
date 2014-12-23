@@ -120,7 +120,7 @@ public:
      * @returns Result of the call.
      * @throws an exception (json_spirit::Value) when an error happens.
      */
-    json_spirit::Value execute(const std::string &method, const json_spirit::Array &params) const;
+    json_spirit::Value execute(const std::string &method, const json_spirit::Array &params, bool simpleMining) const;
 };
 
 extern const CRPCTable tableRPC;

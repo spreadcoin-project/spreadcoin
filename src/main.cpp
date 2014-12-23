@@ -1352,6 +1352,19 @@ int64 GetBlockValue(int nHeight, int64 nFees)
     return nSubsidy + nFees;
 }
 
+int64 GetTotalSupply()
+{
+    static int PrevBestHeight = 0;
+    static int64 Supply = 0;
+
+    for (int i = PrevBestHeight; i < nBestHeight; i++)
+    {
+        Supply += GetBlockValue(i, 0);
+        PrevBestHeight = nBestHeight;
+    }
+    return Supply;
+}
+
 static uint32_t invertCompact(uint32_t nBits)
 {
     uint8_t nSize = nBits >> 24;
@@ -1555,7 +1568,7 @@ bool CBlock::CheckProofOfWorkLite() const
     if (GetPoWHash() > bnTarget.getuint256() && GetHash() != hashGenesisBlock)
         return error("CheckProofOfWork() : hash doesn't match nBits");
 
-    if (nHeight <= getSecondHardforkBlock())
+    if (nHeight <= getSecondHardforkBlock() || nHeight < Checkpoints::LastCheckPoint())
         return true;
 
     if (vtx.size() < 1)
@@ -1597,7 +1610,7 @@ bool CBlock::CheckProofOfWork() const
     if (!CheckProofOfWorkLite())
         return false;
 
-    if (nHeight <= getSecondHardforkBlock())
+    if (nHeight <= getSecondHardforkBlock() || nHeight < Checkpoints::LastCheckPoint())
         return true;
 
     CBufferStream<MAX_BLOCK_SIZE> PoKData(SER_GETHASH, 0);

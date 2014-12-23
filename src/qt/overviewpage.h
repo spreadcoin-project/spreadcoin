@@ -34,6 +34,7 @@ public slots:
 
 signals:
     void transactionClicked(const QModelIndex &index);
+    void backupWallet();
 
 private:
     Ui::OverviewPage *ui;
