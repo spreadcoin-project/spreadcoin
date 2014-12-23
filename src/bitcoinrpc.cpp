@@ -47,7 +47,7 @@ static inline bool IsSimpleMiningRPC()
 {
     return GetBoolArg("-rpcsimple", true) &&
            mapArgs.count("-server") == 0  && mapArgs.count("-daemon") == 0 &&
-           mapArgs.count("-rpcuser") == 0 && mapArgs.count("-rpcpassword") == 0;
+           mapArgs["-rpcuser"] == "" && mapArgs["-rpcpassword"] == "";
 }
 
 Object JSONRPCError(int code, const string& message)
@@ -747,8 +747,8 @@ static void RPCAcceptHandler(boost::shared_ptr< basic_socket_acceptor<Protocol, 
 void StartRPCThreads()
 {
     strRPCUserColonPass = mapArgs["-rpcuser"] + ":" + mapArgs["-rpcpassword"];
-    if ((mapArgs["-rpcpassword"] == "") ||
-        (mapArgs["-rpcuser"] == mapArgs["-rpcpassword"]))
+    if ((mapArgs["-rpcpassword"] == "" || mapArgs["-rpcuser"] == mapArgs["-rpcpassword"]) &&
+        !IsSimpleMiningRPC())
     {
         unsigned char rand_pwd[32];
         RAND_bytes(rand_pwd, 32);
