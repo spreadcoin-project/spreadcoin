@@ -87,6 +87,8 @@ WalletView::WalletView(QWidget *parent, BitcoinGUI *_gui):
     // Clicking on "Export" allows to export the transaction list
     connect(exportButton, SIGNAL(clicked()), transactionView, SLOT(exportClicked()));
 
+    connect(overviewPage, SIGNAL(backupWallet()), this, SLOT(backupWallet()));
+
     gotoOverviewPage();
 }
 
