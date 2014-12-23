@@ -121,6 +121,14 @@ namespace Checkpoints
         return checkpoints.rbegin()->first;
     }
 
+    unsigned int LastCheckPoint()
+    {
+        if (Checkpoints().mapCheckpoints->empty())
+            return 0;
+
+        return Checkpoints().mapCheckpoints->rend()->first;
+    }
+
     CBlockIndex* GetLastCheckpoint(const std::map<uint256, CBlockIndex*>& mapBlockIndex)
     {
         if (fTestNet) return NULL; // Testnet has no checkpoints

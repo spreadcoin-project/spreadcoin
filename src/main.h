@@ -1577,7 +1577,7 @@ public:
 
     // Check whether a block satisfies the proof-of-work requirement specified by nBits
     // (without checking for hashWholeBlock correctness)
-    bool CheckProofOfWorkLite(bool UseCache = true) const;
+    bool CheckProofOfWorkLite() const;
 
     CBlockHeader GetBlockHeader() const
     {
