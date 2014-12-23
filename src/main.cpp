@@ -16,7 +16,6 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/unordered_set.hpp>
 
 #include <algorithm>
 #include <boost/assign/list_of.hpp>
@@ -107,24 +106,19 @@ unsigned int getSecondHardforkBlock()
 //
 // Cache checked blocks
 //
-CCriticalSection cs_checkedBlocks;
-boost::unordered_set<uint256> checkedBlocks;
-
-std::size_t hash_value(const uint256& b)
-{
-    return (size_t)b.Get64(0);
-}
+static CCriticalSection cs_lastChecked;
+static uint256 lastChecked;
 
 bool IsChecked(uint256 hashBlock)
 {
-    LOCK(cs_checkedBlocks);
-    return !!checkedBlocks.count(hashBlock);
+    LOCK(cs_lastChecked);
+    return lastChecked == hashBlock;
 }
 
 void MarkAsChecked(uint256 hashBlock)
 {
-    LOCK(cs_checkedBlocks);
-    checkedBlocks.insert(hashBlock);
+    LOCK(cs_lastChecked);
+    lastChecked = hashBlock;
 }
 
 //////////////////////////////////////////////////////////////////////////////
