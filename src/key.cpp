@@ -316,6 +316,21 @@ CPubKey CKey::GetPubKey() const {
     return pubkey;
 }
 
+CSignature CKey::Sign(const uint256 &hash) const {
+    if (!fValid)
+        return false;
+    CECKey key;
+    key.SetSecretBytes(vch);
+    int rec = -1;
+    CSignature sig;
+    if (!key.SignCompact(hash, &sig[1], rec))
+        return CSignature(); // this should not happen
+    assert(rec != -1);
+    sig[0] = 27 + rec;
+    return signature;
+
+}
+
 bool CKey::Sign(const uint256 &hash, std::vector<unsigned char>& vchSig) const {
     return SignCompact(hash, vchSig);
 }

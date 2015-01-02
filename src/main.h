@@ -348,6 +348,13 @@ public:
     {
         printf("%s\n", ToString().c_str());
     }
+
+    uint256 GetHash() const
+    {
+        CHashWriter hasher;
+        hasher << hash << n;
+        return hasher.GetHash();
+    }
 };
 
 

@@ -6,6 +6,7 @@
 #define BITCOIN_KEY_H
 
 #include <vector>
+#include <array>
 
 #include "allocators.h"
 #include "serialize.h"
@@ -35,6 +36,8 @@ public:
     CScriptID() : uint160(0) { }
     CScriptID(const uint160 &in) : uint160(in) { }
 };
+
+typedef std::array<uint8_t, 65> CSignature;
 
 /** An encapsulated public key. */
 class CPubKey {
@@ -234,6 +237,7 @@ public:
     // The header byte: 0x1B = first key with even y, 0x1C = first key with odd y,
     //                  0x1D = second key with even y, 0x1E = second key with odd y.
     bool Sign(const uint256 &hash, std::vector<unsigned char>& vchSig) const;
+    CSignature Sign(const uint256 &hash) const;
     bool SignCompact(const uint256 &hash, std::vector<unsigned char>& vchSig) const;
 };
 
