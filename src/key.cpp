@@ -318,7 +318,7 @@ CPubKey CKey::GetPubKey() const {
 
 CSignature CKey::Sign(const uint256 &hash) const {
     if (!fValid)
-        return false;
+        return CSignature();
     CECKey key;
     key.SetSecretBytes(vch);
     int rec = -1;
@@ -327,7 +327,7 @@ CSignature CKey::Sign(const uint256 &hash) const {
         return CSignature(); // this should not happen
     assert(rec != -1);
     sig[0] = 27 + rec;
-    return signature;
+    return sig;
 
 }
 
@@ -354,6 +354,16 @@ bool CPubKey::Verify(const uint256 &hash, const std::vector<unsigned char>& vchS
 }
 
 bool CPubKey::RecoverCompact(const uint256 &hash, const std::vector<unsigned char>& vchSig) {
+    if (vchSig.size() != 65)
+        return false;
+    CECKey key;
+    if (!key.Recover(hash, &vchSig[1], vchSig[0] - 27))
+        return false;
+    key.GetPubKey(*this);
+    return true;
+}
+
+bool CPubKey::RecoverCompact(const uint256 &hash, const CSignature& vchSig) {
     if (vchSig.size() != 65)
         return false;
     CECKey key;

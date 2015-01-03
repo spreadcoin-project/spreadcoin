@@ -3,23 +3,6 @@
 
 #include "main.h"
 
-class CMasterNode
-{
-public:
-    // Masternode indentifier
-    COutPoint outpoint;
-
-    // Key used to sign masternode's messages so that it doesn't need to keep in memory it's main key
-    CPubKey key2;
-
-    // Only for our masternodes obviously
-    CKey privkey;
-
-    uint256 GetHash();
-
-    CMasterNode();
-};
-
 // Wrapper for masternode messages
 class CMasterNodeBaseMsg
 {
@@ -31,22 +14,7 @@ public:
     // All other messages are signed with key2.
     CSignature signature;
 
-    virtual uint256 GetHashForSignature() = 0;
-};
-
-// Message broadcasted by masternode to announce its public key.
-// Usually broadcasted at startup.
-class CMasterNodePubKeyMsg : public CMasterNodeBaseMsg
-{
-public:
-    // new key to sign all subsequent messages
-    CPubKey key2;
-
-    // prove that this message is recent
-    uint64_t nBlock;
-    uint256 blockHash;
-
-    uint256 GetHashForSignature();
+    virtual uint256 GetHashForSignature() const = 0;
 };
 
 // Message broadcasted by masternode to confirm that it is running
@@ -54,14 +22,55 @@ class CMasterNodeExistenceMsg : public CMasterNodeBaseMsg
 {
 public:
     // prove that this message is recent
-    uint64_t nBlock;
-    uint256 blockHash;
+    int32_t nBlock;
+    uint256 hashBlock;
 
-    uint256 GetHashForSignature();
+    uint256 GetHashForSignature() const;
+    uint256 GetHash() const;
+
+    IMPLEMENT_SERIALIZE
+    (
+        READWRITE(outpoint);
+        READWRITE(signature);
+        READWRITE(nBlock);
+        READWRITE(hashBlock);
+    )
 };
+
+class CMasterNode
+{
+    struct CReceivedExistenceMsg
+    {
+        CMasterNodeExistenceMsg msg;
+        int64_t nReceiveTime;
+    };
+
+    // Messages which confirm that this masternode still exists
+    std::vector<CReceivedExistenceMsg> existenceMsgs;
+
+public:
+
+    // Masternode indentifier
+    COutPoint outpoint;
+
+    // Only for our masternodes
+    CKey privkey;
+
+    uint256 GetHash();
+
+    void GetExistenceBlocks(std::vector<int>& v) const;
+
+    double GetScore() const;
+
+    CMasterNode();
+
+    int AddExistenceMsg(const CMasterNodeExistenceMsg& msg);
+    void Cleanup();
+};
+
 
 void MN_ProcessBlock(const CBlockHeader& block);
 void MN_ProcessInstantTx(const CTransaction& tx);
-void MN_ProcessExistenceMsg(const CMasterNodeExistenceMsg& mnem);
+void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
 
 #endif // MASTERNODES_H

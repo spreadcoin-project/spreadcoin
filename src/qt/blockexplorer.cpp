@@ -30,7 +30,7 @@ static int64_t getTxIn(const CTransaction& tx)
 
     int64_t Sum = 0;
     for (unsigned int i = 0; i < tx.vin.size(); i++)
-        Sum += getPrevOut(tx.vin[i]).nValue;
+        Sum += getPrevOut(tx.vin[i].prevout).nValue;
     return Sum;
 }
 
@@ -107,7 +107,7 @@ static std::string TxToRow(const CTransaction& tx, const CScript& Highlight = CS
         }
         else
         {
-            CTxOut PrevOut = getPrevOut(tx.vin[j]);
+            CTxOut PrevOut = getPrevOut(tx.vin[j].prevout);
             InAmounts += ValueToString(PrevOut.nValue);
             InAddresses += ScriptToString(PrevOut.scriptPubKey, false, PrevOut.scriptPubKey == Highlight).c_str();
             if (PrevOut.scriptPubKey == Highlight)
@@ -258,7 +258,7 @@ std::string TxToString(uint256 BlockHash, const CTransaction& tx)
     else for (unsigned int i = 0; i < tx.vin.size(); i++)
     {
         COutPoint Out = tx.vin[i].prevout;
-        CTxOut PrevOut = getPrevOut(tx.vin[i]);
+        CTxOut PrevOut = getPrevOut(tx.vin[i].prevout);
         if (PrevOut.nValue < 0)
             Input = -MAX_MONEY;
         else

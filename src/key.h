@@ -37,7 +37,59 @@ public:
     CScriptID(const uint160 &in) : uint160(in) { }
 };
 
-typedef std::array<uint8_t, 65> CSignature;
+class CSignature
+{
+    uint8_t sgn[65];
+
+public:
+    CSignature()
+    {
+        SetNull();
+    }
+
+    unsigned int size() const    { return 65; }
+
+          uint8_t* begin()          { return sgn; }
+    const uint8_t* begin() const    { return sgn; }
+          uint8_t* end()            { return sgn + size(); }
+    const uint8_t* end() const      { return sgn + size(); }
+
+          uint8_t& operator[](int i)       { return sgn[i]; }
+    const uint8_t& operator[](int i) const { return sgn[i]; }
+
+    void SetNull()
+    {
+        memset(sgn, 0, size());
+    }
+
+    std::string ToString() const
+    {
+        std::string Str;
+        for (unsigned int i = 0; i < size(); i++)
+        {
+            Str += "0123456789abcdef"[sgn[i] / 16];
+            Str += "0123456789abcdef"[sgn[i] % 16];
+        }
+        return Str;
+    }
+
+    unsigned int GetSerializeSize(int nType=0, int nVersion=PROTOCOL_VERSION) const
+    {
+        return size();
+    }
+
+    template<typename Stream>
+    void Serialize(Stream& s, int nType=0, int nVersion=PROTOCOL_VERSION) const
+    {
+        s.write((const char*)sgn, size());
+    }
+
+    template<typename Stream>
+    void Unserialize(Stream& s, int nType=0, int nVersion=PROTOCOL_VERSION)
+    {
+        s.read((char*)sgn, size());
+    }
+};
 
 /** An encapsulated public key. */
 class CPubKey {
@@ -155,6 +207,7 @@ public:
 
     // Recover a public key from a compact signature.
     bool RecoverCompact(const uint256 &hash, const std::vector<unsigned char>& vchSig);
+    bool RecoverCompact(const uint256 &hash, const CSignature& vchSig);
 };
 
 

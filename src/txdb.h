@@ -74,7 +74,7 @@ public:
     bool ReadEnable(bool &fValue);
 };
 
-CTxOut getPrevOut(const CTxIn& In);
+CTxOut getPrevOut(const COutPoint& out);
 void getNextIn(const COutPoint& Out, uint256& Hash, unsigned int& n);
 // Return transaction in tx, and if it was found inside a block, its header is placed in block
 bool ReadTransaction(const CDiskTxPos &postx, CTransaction &txOut, CBlockHeader &block);

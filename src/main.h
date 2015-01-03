@@ -351,7 +351,7 @@ public:
 
     uint256 GetHash() const
     {
-        CHashWriter hasher;
+        CHashWriter hasher(SER_GETHASH, 0);
         hasher << hash << n;
         return hasher.GetHash();
     }
@@ -497,7 +497,7 @@ public:
     {
         if (scriptPubKey.size() < 6)
             return "CTxOut(error)";
-        return strprintf("CTxOut(nValue=%"PRI64d".%08"PRI64d", scriptPubKey=%s)", nValue / COIN, nValue % COIN, scriptPubKey.ToString().substr(0,30).c_str());
+        return strprintf("CTxOut(nValue=%" PRI64d ".%08" PRI64d ", scriptPubKey=%s)", nValue / COIN, nValue % COIN, scriptPubKey.ToString().substr(0,30).c_str());
     }
 
     void print() const
@@ -693,7 +693,7 @@ void UpdateCoins(const CTransaction& tx, CValidationState &state, CCoinsViewCach
     std::string ToString() const
     {
         std::string str;
-        str += strprintf("CTransaction(hash=%s, ver=%d, vin.size=%"PRIszu", vout.size=%"PRIszu", nLockTime=%u)\n",
+        str += strprintf("CTransaction(hash=%s, ver=%d, vin.size=%" PRIszu ", vout.size=%" PRIszu ", nLockTime=%u)\n",
             GetHash().ToString().c_str(),
             nVersion,
             vin.size(),
@@ -1392,57 +1392,6 @@ public:
 };
 #endif // ENABLE_DARKSEND_FEATURES
 
-class CMinerSignature
-{
-    uint8_t sgn[65];
-
-public:
-    CMinerSignature()
-    {
-        SetNull();
-    }
-
-    unsigned int size() const    { return 65; }
-
-          uint8_t* begin()          { return sgn; }
-    const uint8_t* begin() const    { return sgn; }
-          uint8_t* end()            { return sgn + size(); }
-    const uint8_t* end() const      { return sgn + size(); }
-
-    void SetNull()
-    {
-        memset(sgn, 0, size());
-    }
-
-    std::string ToString() const
-    {
-        std::string Str;
-        for (unsigned int i = 0; i < size(); i++)
-        {
-            Str += "0123456789abcdef"[sgn[i] / 16];
-            Str += "0123456789abcdef"[sgn[i] % 16];
-        }
-        return Str;
-    }
-
-    unsigned int GetSerializeSize(int nType=0, int nVersion=PROTOCOL_VERSION) const
-    {
-        return size();
-    }
-
-    template<typename Stream>
-    void Serialize(Stream& s, int nType=0, int nVersion=PROTOCOL_VERSION) const
-    {
-        s.write((const char*)sgn, size());
-    }
-
-    template<typename Stream>
-    void Unserialize(Stream& s, int nType=0, int nVersion=PROTOCOL_VERSION)
-    {
-        s.read((char*)sgn, size());
-    }
-};
-
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work
  * requirements.  When they solve the proof-of-work, they broadcast the block
@@ -1465,7 +1414,7 @@ public:
 
     // Spread mining extensions:
     uint256 hashWholeBlock; // proof of whole block knowledge
-    CMinerSignature MinerSignature; // proof of private key knowledge
+    CSignature MinerSignature; // proof of private key knowledge
 
 #if ENABLE_DARKSEND_FEATURES
     std::vector<CMasterNodeVote> vmn;
@@ -1704,7 +1653,7 @@ public:
 
     void print() const
     {
-        printf("CBlock(hash=%s, input=%s, PoW=%s, ver=%d, hashPrevBlock=%s, hashMerkleRoot=%s, hashWholeBlock=%s, nTime=%" PRI64d ", nBits=%08x, nNonce=%u, nHeight=%u, MinerSignature=%s, vtx=%"PRIszu")\n",
+        printf("CBlock(hash=%s, input=%s, PoW=%s, ver=%d, hashPrevBlock=%s, hashMerkleRoot=%s, hashWholeBlock=%s, nTime=%" PRI64d ", nBits=%08x, nNonce=%u, nHeight=%u, MinerSignature=%s, vtx=%" PRIszu ")\n",
             GetHash().ToString().c_str(),
             HexStr(BEGIN(nVersion),BEGIN(nVersion)+80,false).c_str(),
             GetPoWHash().ToString().c_str(),
@@ -1893,6 +1842,9 @@ public:
     // Verification status of this block. See enum BlockStatus
     unsigned int nStatus;
 
+    // Masternodes extensions
+    int64_t nReceiveTime;
+
     // block header
     int nVersion;
     uint256 hashMerkleRoot;
@@ -1902,7 +1854,7 @@ public:
 
     // Spread mining extensions:
     uint256 hashWholeBlock;
-    CMinerSignature MinerSignature;
+    CSignature MinerSignature;
 
     CBlockIndex()
     {
@@ -1917,6 +1869,7 @@ public:
         nTx = 0;
         nChainTx = 0;
         nStatus = 0;
+        nReceiveTime = 0;
 
         nVersion       = 0;
         hashMerkleRoot = 0;
@@ -1940,6 +1893,7 @@ public:
         nTx = 0;
         nChainTx = 0;
         nStatus = 0;
+        nReceiveTime = 0;
 
         nVersion       = block.nVersion;
         hashMerkleRoot = block.hashMerkleRoot;

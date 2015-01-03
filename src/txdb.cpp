@@ -262,12 +262,12 @@ bool CBlockTreeDB::WriteCheckpointPubKey(const string& strPubKey)
     return Write(string("strCheckpointPubKey"), strPubKey);
 }
 
-CTxOut getPrevOut(const CTxIn& In)
+CTxOut getPrevOut(const COutPoint &out)
 {
     CTransaction tx;
     uint256 hashBlock = 0;
-    if (GetTransaction(In.prevout.hash, tx, hashBlock, true))
-        return tx.vout[In.prevout.n];
+    if (GetTransaction(out.hash, tx, hashBlock, true))
+        return tx.vout[out.n];
     return CTxOut();
 }
 
@@ -311,7 +311,7 @@ bool CAddressDB::AddTx(const std::vector<CTransaction>& vtx, const std::vector<s
         for (unsigned int j = 0; j < vtx[i].vin.size(); j++)
         {
             const CTxIn& in = vtx[i].vin[j];
-            CScript script = getPrevOut(in).scriptPubKey;
+            CScript script = getPrevOut(in.prevout).scriptPubKey;
             if (script.empty())
                 continue;
             CScriptID scid = script.GetID();
