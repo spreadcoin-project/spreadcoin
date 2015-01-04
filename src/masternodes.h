@@ -3,6 +3,8 @@
 
 #include "main.h"
 
+static const int64_t g_MinMasternodeAmount = COIN/100;
+
 // Wrapper for masternode messages
 class CMasterNodeBaseMsg
 {

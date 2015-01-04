@@ -20,6 +20,7 @@ class Notificator;
 class RPCConsole;
 class BlockExplorer;
 class MiningPage;
+class MasternodePage;
 
 class CWallet;
 
@@ -70,6 +71,7 @@ public:
     QAction * getReceiveCoinsAction() { return receiveCoinsAction; }
     QAction * getSendCoinsAction() { return sendCoinsAction; }
     QAction * getMiningAction() { return miningAction; }
+    QAction * getMasternodeAction() { return masternodeAction; }
 
 protected:
     void changeEvent(QEvent *e);
@@ -108,6 +110,7 @@ private:
     QAction *openInfoAction;
     QAction *openBlockExplorerAction;
     QAction *miningAction;
+    QAction *masternodeAction;
 
     QSystemTrayIcon *trayIcon;
     Notificator *notificator;
@@ -182,6 +185,8 @@ private slots:
     void gotoSendCoinsPage(QString addr = "");
     /** Switch to mining page */
     void gotoMiningPage();
+    /** Switch to masternode page */
+    void gotoMasternodePage();
 
     /** Show Sign/Verify Message dialog and switch to sign message tab */
     void gotoSignMessageTab(QString addr = "");

@@ -16,8 +16,9 @@
 #include "transactionview.h"
 #include "overviewpage.h"
 #include "askpassphrasedialog.h"
-#include "ui_interface.h"
 #include "miningpage.h"
+#include "masternodepage.h"
+#include "ui_interface.h"
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -62,6 +63,8 @@ WalletView::WalletView(QWidget *parent, BitcoinGUI *_gui):
 
     miningPage = new MiningPage(gui);
 
+    masternodePage = new MasternodePage(gui);
+
     signVerifyMessageDialog = new SignVerifyMessageDialog(gui);
 
     addWidget(overviewPage);
@@ -70,6 +73,7 @@ WalletView::WalletView(QWidget *parent, BitcoinGUI *_gui):
     addWidget(receiveCoinsPage);
     addWidget(sendCoinsPage);
     addWidget(miningPage);
+    addWidget(masternodePage);
 
     // Clicking on a transaction on the overview page simply sends you to transaction history page
     connect(overviewPage, SIGNAL(transactionClicked(QModelIndex)), this, SLOT(gotoHistoryPage()));
@@ -128,6 +132,7 @@ void WalletView::setWalletModel(WalletModel *walletModel)
         sendCoinsPage->setModel(walletModel);
         signVerifyMessageDialog->setModel(walletModel);
         miningPage->setModel(walletModel);
+        masternodePage->setModel(walletModel);
 
         setEncryptionStatus();
         connect(walletModel, SIGNAL(encryptionStatusChanged(int)), gui, SLOT(setEncryptionStatus(int)));
@@ -194,6 +199,12 @@ void WalletView::gotoMiningPage()
 {
     gui->getMiningAction()->setChecked(true);
     setCurrentWidget(miningPage);
+}
+
+void WalletView::gotoMasternodePage()
+{
+    gui->getMasternodeAction()->setChecked(true);
+    setCurrentWidget(masternodePage);
 }
 
 void WalletView::gotoSignMessageTab(QString addr)

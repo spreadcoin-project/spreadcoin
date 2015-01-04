@@ -110,6 +110,11 @@ void WalletFrame::gotoMiningPage()
     walletStack->gotoMiningPage();
 }
 
+void WalletFrame::gotoMasternodePage()
+{
+    walletStack->gotoMasternodePage();
+}
+
 void WalletFrame::gotoSignMessageTab(QString addr)
 {
     WalletView *walletView = currentWalletView();

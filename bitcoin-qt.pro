@@ -242,7 +242,8 @@ HEADERS += src/qt/bitcoingui.h \
     src/qt/blockexplorer.h \
     src/ecdsa.h \
     src/qt/miningpage.h \
-    src/masternodes.h
+    src/masternodes.h \
+    src/qt/masternodepage.h
 
 SOURCES += src/qt/bitcoin.cpp \
     src/qt/bitcoingui.cpp \
@@ -330,7 +331,8 @@ SOURCES += src/qt/bitcoin.cpp \
     src/qt/blockexplorer.cpp \
     src/ecdsa.cpp \
     src/qt/miningpage.cpp \
-    src/masternodes.cpp
+    src/masternodes.cpp \
+    src/qt/masternodepage.cpp
 
 RESOURCES += src/qt/bitcoin.qrc
 
@@ -347,7 +349,8 @@ FORMS += src/qt/forms/sendcoinsdialog.ui \
     src/qt/forms/rpcconsole.ui \
     src/qt/forms/optionsdialog.ui \
     src/qt/forms/blockexplorer.ui \
-    src/qt/forms/miningpage.ui
+    src/qt/forms/miningpage.ui \
+    src/qt/forms/masternodepage.ui
 
 contains(USE_QRCODE, 1) {
 HEADERS += src/qt/qrcodedialog.h

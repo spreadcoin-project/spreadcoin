@@ -19,6 +19,7 @@ class SendCoinsDialog;
 class SignVerifyMessageDialog;
 class RPCConsole;
 class MiningPage;
+class MasternodePage;
 
 QT_BEGIN_NAMESPACE
 class QLabel;
@@ -65,6 +66,7 @@ private:
     AddressBookPage *receiveCoinsPage;
     SendCoinsDialog *sendCoinsPage;
     MiningPage *miningPage;
+    MasternodePage *masternodePage;
     SignVerifyMessageDialog *signVerifyMessageDialog;
 
     TransactionView *transactionView;
@@ -82,6 +84,8 @@ public slots:
     void gotoSendCoinsPage(QString addr = "");
     /** Switch to mining page */
     void gotoMiningPage();
+    /** Switch to masternode page */
+    void gotoMasternodePage();
 
     /** Show Sign/Verify Message dialog and switch to sign message tab */
     void gotoSignMessageTab(QString addr = "");

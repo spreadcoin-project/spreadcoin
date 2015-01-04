@@ -13,7 +13,6 @@ static const int g_MaxMasternodes = 2000;
 static const int g_MasternodeMinConfirmations = 1000;
 static const int g_AnnounceExistencePeriod = 500;
 
-static const int64_t g_MinMasternodeAmount = 1000*COIN;
 
 static const double g_PenaltyTime = 500.0;
 

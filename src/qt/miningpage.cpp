@@ -12,7 +12,8 @@ extern json_spirit::Value GetNetworkHashPS(int lookup, int height);
 
 MiningPage::MiningPage(QWidget *parent) :
     QWidget(parent),
-    ui(new Ui::MiningPage)
+    ui(new Ui::MiningPage),
+    model(NULL)
 {
     ui->setupUi(this);
 
