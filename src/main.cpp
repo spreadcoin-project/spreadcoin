@@ -1344,6 +1344,9 @@ int64 GetBlockValue(int nHeight, int64 nFees)
     if (nHeight > (int)getFirstHardforkBlock())
         nSubsidy /= 10;
 
+    if (fTestNet && nHeight < 100)
+        nSubsidy *= 100;
+
     // Subsidy is cut in half every g_RewardHalvingPeriod blocks which will occur approximately every 4 years.
     int halvings = nHeight / g_RewardHalvingPeriod;
     nSubsidy = (halvings >= 64)? 0 : (nSubsidy >> halvings);
@@ -1543,7 +1546,7 @@ uint256 CBlock::HashPoKData(const CBufferStream<MAX_BLOCK_SIZE>& PoKData)
     SHA256_Init(&ctx);
 
     // Hash everything twice to ensure that pool can not hide part of the block from miners by supplying them hash state.
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < (fTestNet? 1 : 2); i++)
     {
         uint8_t LowByte = PoKData[0] & ~NONCE_MASK;  // ignore lowest 6 bits in nonce to allow enumeration of 64 hashes without recomputing whole block hash
         SHA256_Update(&ctx, &LowByte, 1);
@@ -5375,7 +5378,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
     CReserveKey reservekey(pwallet);
 
     try { loop {
-       while (vNodes.empty())
+       while (!fTestNet && vNodes.empty())
             MilliSleep(1000);
 
         //
@@ -5478,7 +5481,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
 
             // Check for stop or if block needs to be rebuilt
             boost::this_thread::interruption_point();
-            if (vNodes.empty())
+            if (!fTestNet && vNodes.empty())
                 break;
             if (pblock->nNonce >= 0xffff0000)
                 break;
