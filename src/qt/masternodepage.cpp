@@ -1,4 +1,5 @@
 #include <map>
+#include <QCheckBox>
 #include "masternodepage.h"
 #include "ui_masternodepage.h"
 #include "walletmodel.h"
@@ -12,9 +13,21 @@ enum EColumn
     C_ADDRESS,
     C_AMOUNT,
     C_OUTPUT,
+    C_CONTROL,
 
     C_COUNT,
 };
+
+MasternodeCheckbox::MasternodeCheckbox(CKeyID keyid_, uint256 hashTx, int i)
+    : keyid(keyid_), outpoint(hashTx, i)
+{
+    connect(this, SIGNAL(stateChanged(int)), this, SLOT(updateState(int)));
+}
+
+void MasternodeCheckbox::updateState(int newState)
+{
+    emit switchMasternode(keyid, outpoint, newState == Qt::Checked);
+}
 
 MasternodePage::MasternodePage(QWidget *parent) :
     QWidget(parent),
@@ -28,6 +41,7 @@ MasternodePage::MasternodePage(QWidget *parent) :
     ui->tableWidget->setHorizontalHeaderItem((int)C_ADDRESS, new QTableWidgetItem(tr("Address")));
     ui->tableWidget->setHorizontalHeaderItem((int)C_AMOUNT,  new QTableWidgetItem(tr("Amount")));
     ui->tableWidget->setHorizontalHeaderItem((int)C_OUTPUT,  new QTableWidgetItem(tr("Output")));
+    ui->tableWidget->setHorizontalHeaderItem((int)C_CONTROL, new QTableWidgetItem(tr("Control")));
 }
 
 MasternodePage::~MasternodePage()
@@ -46,6 +60,9 @@ void MasternodePage::setModel(WalletModel *model)
 
 void MasternodePage::updateOutputs(int count)
 {
+    if (IsInitialBlockDownload())
+        return;
+
     std::map<QString, std::vector<COutput> > mapCoins;
     model->listCoins(mapCoins);
 
@@ -66,6 +83,23 @@ void MasternodePage::updateOutputs(int count)
             pTable->setItem(iRow, (int)C_ADDRESS, new QTableWidgetItem(coins.first));
             pTable->setItem(iRow, (int)C_AMOUNT, new QTableWidgetItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, nAmount)));
             pTable->setItem(iRow, (int)C_OUTPUT, new QTableWidgetItem(QString("%1:%2").arg(out.tx->GetHash().ToString().c_str()).arg(out.i)));
+
+            QCheckBox* pButton = new QCheckBox("Is running");
+            connect(pButton, SIGNAL(switchMasternode(const CKeyID&, const COutPoint&, bool)), this, SLOT(switchMasternode(const CKeyID&, const COutPoint&, bool)));
+            pTable->setCellWidget(iRow, (int)C_CONTROL, pButton);
+
         }
     }
+}
+
+void MasternodePage::switchMasternode(const CKeyID &keyid, const COutPoint &outpoint, bool state)
+{
+    CMasterNode& mn = getMasterNode(outpoint);
+     if (!state)
+         mn.privkey = CKey();
+     else
+     {
+         WalletModel::UnlockContext context(model->requestUnlock());
+         pwalletMain->GetKey(keyid, mn.privkey);
+     }
 }

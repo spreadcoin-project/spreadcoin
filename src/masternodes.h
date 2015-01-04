@@ -70,8 +70,8 @@ public:
     void Cleanup();
 };
 
-
-void MN_ProcessBlock(const CBlockHeader& block);
+CMasterNode& getMasterNode(const COutPoint& outpoint);
+void MN_ProcessBlocks();
 void MN_ProcessInstantTx(const CTransaction& tx);
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
 

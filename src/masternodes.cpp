@@ -162,7 +162,7 @@ uint256 CMasterNodeExistenceMsg::GetHash() const
     return hasher.GetHash();
 }
 
-void MN_ProcessBlock()
+void MN_ProcessBlocks()
 {
     if (IsInitialBlockDownload())
         return;
