@@ -18,8 +18,8 @@ enum EColumn
     C_COUNT,
 };
 
-MasternodeCheckbox::MasternodeCheckbox(CKeyID keyid_, uint256 hashTx, int i)
-    : keyid(keyid_), outpoint(hashTx, i)
+MasternodeCheckbox::MasternodeCheckbox(CKeyID keyid_, const COutPoint &outpoint_)
+    : keyid(keyid_), outpoint(outpoint_)
 {
     connect(this, SIGNAL(stateChanged(int)), this, SLOT(updateState(int)));
 }
@@ -72,22 +72,27 @@ void MasternodePage::updateOutputs(int count)
 
     BOOST_FOREACH(PAIRTYPE(QString, std::vector<COutput>) coins, mapCoins)
     {
+        CBitcoinAddress address;
+        address.SetString(coins.first.toUtf8().data());
+        CKeyID keyid;
+        if (!address.GetKeyID(keyid))
+            continue;
+
         BOOST_FOREACH(const COutput& out, coins.second)
         {
-            int64_t nAmount = out.tx->vout[out.i].nValue;
-            if (nAmount < g_MinMasternodeAmount)
+            COutPoint outpoint(out.tx->GetHash(), out.i);
+            if (!IsAcceptableMasternodeOutpoint(outpoint))
                 continue;
 
             int iRow = pTable->rowCount();
             pTable->setRowCount(iRow + 1);
             pTable->setItem(iRow, (int)C_ADDRESS, new QTableWidgetItem(coins.first));
-            pTable->setItem(iRow, (int)C_AMOUNT, new QTableWidgetItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, nAmount)));
+            pTable->setItem(iRow, (int)C_AMOUNT, new QTableWidgetItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, out.tx->vout[out.i].nValue)));
             pTable->setItem(iRow, (int)C_OUTPUT, new QTableWidgetItem(QString("%1:%2").arg(out.tx->GetHash().ToString().c_str()).arg(out.i)));
 
-            QCheckBox* pButton = new QCheckBox("Is running");
+            MasternodeCheckbox* pButton = new MasternodeCheckbox(keyid, outpoint);
             connect(pButton, SIGNAL(switchMasternode(const CKeyID&, const COutPoint&, bool)), this, SLOT(switchMasternode(const CKeyID&, const COutPoint&, bool)));
             pTable->setCellWidget(iRow, (int)C_CONTROL, pButton);
-
         }
     }
 }

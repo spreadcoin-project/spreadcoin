@@ -1044,7 +1044,7 @@ bool CTransaction::AcceptableInputs(CValidationState &state, bool fLimitFree)
 }
 
 
-int GetInputAge(CTxIn& vin)
+int GetInputAge(const COutPoint& outpoint)
 {
     // Fetch previous transactions (inputs):
     CCoinsView viewDummy;
@@ -1055,13 +1055,13 @@ int GetInputAge(CTxIn& vin)
         CCoinsViewMemPool viewMempool(viewChain, mempool);
         view.SetBackend(viewMempool); // temporarily switch cache backend to db+mempool view
 
-        const uint256& prevHash = vin.prevout.hash;
+        const uint256& prevHash = outpoint.hash;
         CCoins coins;
         view.GetCoins(prevHash, coins); // this is certainly allowed to fail
         view.SetBackend(viewDummy); // switch back to avoid locking mempool for too long
     }
 
-    const CCoins &coins = view.GetCoins(vin.prevout.hash);
+    const CCoins &coins = view.GetCoins(outpoint.hash);
 
     return (pindexBest->nHeight+1) - coins.nHeight;
 }

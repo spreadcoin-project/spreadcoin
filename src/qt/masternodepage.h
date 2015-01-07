@@ -22,7 +22,7 @@ class MasternodeCheckbox : public QCheckBox
     COutPoint outpoint;
 
 public:
-    MasternodeCheckbox(CKeyID keyid, uint256 hashTx, int i);
+    MasternodeCheckbox(CKeyID keyid, const COutPoint& outpoint);
 
 private slots:
     void updateState(int);

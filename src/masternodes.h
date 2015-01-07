@@ -3,7 +3,7 @@
 
 #include "main.h"
 
-static const int64_t g_MinMasternodeAmount = COIN/100;
+static const int64_t g_MinMasternodeAmount = 1000*COIN;
 
 // Wrapper for masternode messages
 class CMasterNodeBaseMsg
@@ -71,6 +71,7 @@ public:
 };
 
 CMasterNode& getMasterNode(const COutPoint& outpoint);
+bool IsAcceptableMasternodeOutpoint(const COutPoint& outpoint);
 void MN_ProcessBlocks();
 void MN_ProcessInstantTx(const CTransaction& tx);
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);

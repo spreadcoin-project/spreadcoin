@@ -207,6 +207,26 @@ void MN_ProcessBlocks()
     }
 }
 
+bool IsAcceptableMasternodeOutpoint(const COutPoint& outpoint)
+{
+    CValidationState state;
+    CTransaction tx;
+
+    CTxIn in;
+    in.prevout = outpoint;
+
+    CTxOut testOut = CTxOut(g_MinMasternodeAmount, CScript());
+    tx.vin.push_back(in);
+    tx.vout.push_back(testOut);
+    if (!tx.AcceptableInputs(state, true))
+        return false;
+
+    if(GetInputAge(outpoint) < g_MasternodeMinConfirmations)
+        return false;
+
+    return true;
+}
+
 static int MN_ProcessExistenceMsg_Impl(const CMasterNodeExistenceMsg& mnem)
 {
     if (mnem.nBlock < pindexBest->nHeight - 100)
@@ -215,21 +235,10 @@ static int MN_ProcessExistenceMsg_Impl(const CMasterNodeExistenceMsg& mnem)
     if (mnem.nBlock < pindexBest->nHeight - 50)
         return 0;
 
-    CValidationState state;
-    CTransaction tx = CTransaction();
-
-    CTxIn in;
-    in.prevout = mnem.outpoint;
-
-    CTxOut testOut = CTxOut(g_MinMasternodeAmount, CScript());
-    tx.vin.push_back(in);
-    tx.vout.push_back(testOut);
-    if (!tx.AcceptableInputs(state, true))
+    if (!IsAcceptableMasternodeOutpoint(mnem.outpoint))
         return 20;
 
-    if(GetInputAge(in) < g_MasternodeMinConfirmations)
-        return 20;
-
+    CTransaction tx;
     uint256 hashBlock;
     if (GetTransaction(mnem.outpoint.hash, tx, hashBlock, false))
         return 20;
