@@ -12,8 +12,7 @@ public:
     // Masternode indentifier
     COutPoint outpoint;
 
-    // Pubkey message is signed with oupoint key;
-    // All other messages are signed with key2.
+    // Signed with oupoint key.
     CSignature signature;
 
     virtual uint256 GetHashForSignature() const = 0;
@@ -39,39 +38,9 @@ public:
     )
 };
 
-class CMasterNode
-{
-    struct CReceivedExistenceMsg
-    {
-        CMasterNodeExistenceMsg msg;
-        int64_t nReceiveTime;
-    };
-
-    // Messages which confirm that this masternode still exists
-    std::vector<CReceivedExistenceMsg> existenceMsgs;
-
-public:
-
-    // Masternode indentifier
-    COutPoint outpoint;
-
-    // Only for our masternodes
-    CKey privkey;
-
-    uint256 GetHash();
-
-    void GetExistenceBlocks(std::vector<int>& v) const;
-
-    double GetScore() const;
-
-    CMasterNode();
-
-    int AddExistenceMsg(const CMasterNodeExistenceMsg& msg);
-    void Cleanup();
-};
-
-CMasterNode& getMasterNode(const COutPoint& outpoint);
-bool IsAcceptableMasternodeOutpoint(const COutPoint& outpoint);
+void MN_Start(const COutPoint& outpoint, const CKey& key);
+void MN_Stop(const COutPoint& outpoint);
+CKeyID MN_GetMasternodeKeyID(const COutPoint& outpoint);
 void MN_ProcessBlocks();
 void MN_ProcessInstantTx(const CTransaction& tx);
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);

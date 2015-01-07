@@ -6,28 +6,64 @@
 #include "txdb.h"
 #include "masternodes.h"
 
-static boost::unordered_map<uint256, CMasterNode> g_MasterNodes;
-static boost::unordered_set<uint256> g_OurMasterNodes;
-
-static const int g_MaxMasternodes = 2000;
 static const int g_MasternodeMinConfirmations = 1000;
+
+static const int g_AnnounceExistenceRestartPeriod = 2000;
 static const int g_AnnounceExistencePeriod = 500;
 
 
 static const double g_PenaltyTime = 500.0;
 
-// Blockchain length at startup
+// Blockchain length at startup after sync. We don't know anythyng about how well masternodes were behaving before this block.
 static int32_t g_InitialBlock = 0;
 
-std::size_t hash_value(uint256 v)
+static std::size_t hash_value(uint256 v)
 {
     return (std::size_t)v.Get64(0);
 }
 
-int64_t GetMontoneTimeMs()
+static int64_t GetMontoneTimeMs()
 {
     return boost::chrono::duration_cast<boost::chrono::milliseconds>(boost::chrono::steady_clock::now().time_since_epoch()).count();
 }
+
+class CMasterNode
+{
+    struct CReceivedExistenceMsg
+    {
+        CMasterNodeExistenceMsg msg;
+        int64_t nReceiveTime; // used to mesaure time between block and this message
+    };
+
+    // Messages which confirm that this masternode still exists
+    std::vector<CReceivedExistenceMsg> existenceMsgs;
+
+public:
+
+    // Masternode indentifier
+    COutPoint outpoint;
+
+    // Only for our masternodes
+    CKey privkey;
+
+    CMasterNode();
+
+    // Score based on how fast this node broadcasts its responces.
+    // Miners use this value to elect new masternodes or remove old ones.
+    double GetScore() const;
+
+    // Which blocks should be signed by this masternode to prove that it is running
+    void GetExistenceBlocks(std::vector<int>& v) const;
+
+    // Returns misbehave value or -1 if everything is ok.
+    int AddExistenceMsg(const CMasterNodeExistenceMsg& msg);
+
+    // Should be executed from time to time to remove unnecessary information
+    void Cleanup();
+};
+
+static boost::unordered_map<uint256, CMasterNode> g_MasterNodes;
+static boost::unordered_set<uint256> g_OurMasterNodes;
 
 CMasterNode::CMasterNode()
 {
@@ -37,11 +73,11 @@ void CMasterNode::GetExistenceBlocks(std::vector<int> &v) const
 {
     v.clear();
 
-    int nCurHeight = pindexBest->nHeight;
-    int nBlock = nCurHeight/g_MaxMasternodes*g_MaxMasternodes;
+    int nCurHeight = nBestHeight;
+    int nBlock = nCurHeight/g_AnnounceExistenceRestartPeriod*g_AnnounceExistenceRestartPeriod;
     for (int i = 1; i >= 0; i--)
     {
-        int nSeedBlock = nBlock - i*g_MaxMasternodes;
+        int nSeedBlock = nBlock - i*g_AnnounceExistenceRestartPeriod;
         CBlockIndex* pSeedBlock = FindBlockByHeight(nSeedBlock - g_AnnounceExistencePeriod);
 
         CHashWriter hasher(SER_GETHASH, 0);
@@ -49,9 +85,9 @@ void CMasterNode::GetExistenceBlocks(std::vector<int> &v) const
         hasher << outpoint;
 
         int Shift = hasher.GetHash().Get64(0) % g_AnnounceExistencePeriod;
-        for (int j = nSeedBlock + Shift; j < nSeedBlock + g_MaxMasternodes; j += g_AnnounceExistencePeriod)
+        for (int j = nSeedBlock + Shift; j < nSeedBlock + g_AnnounceExistenceRestartPeriod; j += g_AnnounceExistencePeriod)
         {
-            if (j > nCurHeight - g_MaxMasternodes)
+            if (j > nCurHeight - g_AnnounceExistenceRestartPeriod)
             {
                 v.push_back(j);
             }
@@ -59,36 +95,28 @@ void CMasterNode::GetExistenceBlocks(std::vector<int> &v) const
     }
 }
 
-int CMasterNode::AddExistenceMsg(const CMasterNodeExistenceMsg& msg)
+int CMasterNode::AddExistenceMsg(const CMasterNodeExistenceMsg& newMsg)
 {
-    // FIXME: mark masternode as misbehabing
-    if (existenceMsgs.size() > g_MaxMasternodes/g_AnnounceExistencePeriod*10)
-        return 20;
-
     std::vector<int> vblocks;
     GetExistenceBlocks(vblocks);
 
-    bool bFound = false;
-    for (unsigned int i = 0; i < vblocks.size(); i++)
-    {
-        if (vblocks[i] == msg.nBlock)
-        {
-            bFound = true;
-            break;
-        }
-    }
-    if (!bFound)
+    // Check that this masternode should sign this block
+    if (std::find(vblocks.begin(), vblocks.end(), newMsg.nBlock) == vblocks.end())
         return 20;
 
-    uint256 hash = msg.GetHash();
+    uint256 hash = newMsg.GetHash();
     for (unsigned int i = 0; i < existenceMsgs.size(); i++)
     {
         if (existenceMsgs[i].msg.GetHash() == hash)
             return 0;
     }
 
+    // FIXME: mark masternode as misbehabing
+    if (existenceMsgs.size() > g_AnnounceExistenceRestartPeriod/g_AnnounceExistencePeriod*10)
+        return 20;
+
     CReceivedExistenceMsg receivedMsg;
-    receivedMsg.msg = msg;
+    receivedMsg.msg = newMsg;
     receivedMsg.nReceiveTime = GetMontoneTimeMs();
     existenceMsgs.push_back(receivedMsg);
     return -1;
@@ -98,7 +126,7 @@ void CMasterNode::Cleanup()
 {
     std::remove_if(existenceMsgs.begin(), existenceMsgs.end(), [](const CReceivedExistenceMsg& msg)
     {
-        return msg.msg.nBlock < pindexBest->nHeight - 3*g_MaxMasternodes;
+        return msg.msg.nBlock < nBestHeight - 3*g_AnnounceExistenceRestartPeriod;
     });
 }
 
@@ -111,6 +139,7 @@ double CMasterNode::GetScore() const
 
     for (uint32_t i = 0; i < vblocks.size(); i++)
     {
+        // FIXME: count our ignorance
         if (vblocks[i] <= g_InitialBlock)
             continue;
 
@@ -121,13 +150,13 @@ double CMasterNode::GetScore() const
         {
             if (existenceMsgs[j].msg.nBlock == pBlock->nHeight && existenceMsgs[j].msg.hashBlock == pBlock->GetBlockHash())
             {
-                if (pBlock->nReceiveTime == 0)
+                if (pBlock->nReceiveTime == 0 || existenceMsgs[j].nReceiveTime < pBlock->nReceiveTime)
                 {
                     timeDelta = 0;
                 }
                 else
                 {
-                    timeDelta = std::max(int64_t(0), existenceMsgs[j].nReceiveTime - pBlock->nReceiveTime);
+                    timeDelta = existenceMsgs[j].nReceiveTime - pBlock->nReceiveTime;
                 }
                 break;
             }
@@ -168,7 +197,7 @@ void MN_ProcessBlocks()
         return;
 
     if (g_InitialBlock == 0)
-        g_InitialBlock = pindexBest->nHeight;
+        g_InitialBlock = nBestHeight;
 
     CBlockIndex* pBlock = pindexBest;
     while (pBlock->nReceiveTime == 0)
@@ -207,7 +236,7 @@ void MN_ProcessBlocks()
     }
 }
 
-bool IsAcceptableMasternodeOutpoint(const COutPoint& outpoint)
+CKeyID MN_GetMasternodeKeyID(const COutPoint& outpoint)
 {
     CValidationState state;
     CTransaction tx;
@@ -219,46 +248,47 @@ bool IsAcceptableMasternodeOutpoint(const COutPoint& outpoint)
     tx.vin.push_back(in);
     tx.vout.push_back(testOut);
     if (!tx.AcceptableInputs(state, true))
-        return false;
+        return CKeyID();
 
     if(GetInputAge(outpoint) < g_MasternodeMinConfirmations)
-        return false;
+        return CKeyID();
 
-    return true;
-}
-
-static int MN_ProcessExistenceMsg_Impl(const CMasterNodeExistenceMsg& mnem)
-{
-    if (mnem.nBlock < pindexBest->nHeight - 100)
-        return 20;
-
-    if (mnem.nBlock < pindexBest->nHeight - 50)
-        return 0;
-
-    if (!IsAcceptableMasternodeOutpoint(mnem.outpoint))
-        return 20;
-
-    CTransaction tx;
-    uint256 hashBlock;
-    if (GetTransaction(mnem.outpoint.hash, tx, hashBlock, false))
-        return 20;
-
-    CTxOut out = getPrevOut(mnem.outpoint);
+    CTxOut out = getPrevOut(outpoint);
+    if (out.IsNull())
+        return CKeyID();
 
     // Extract masternode's address from coinbase
     const CScript& OutScript = out.scriptPubKey;
     if (OutScript.size() != 22)
-        return 100;
+        return CKeyID();
     CTxDestination Dest;
     if (!ExtractDestination(OutScript, Dest))
-        return 100;
+        return CKeyID();
     CBitcoinAddress Address;
     if (!Address.Set(Dest) || !Address.IsValid())
-        return 100;
+        return CKeyID();
     CKeyID KeyID;
     if (!Address.GetKeyID(KeyID))
-        return 100;
+        return CKeyID();
 
+    return KeyID;
+}
+
+static int MN_ProcessExistenceMsg_Impl(const CMasterNodeExistenceMsg& mnem)
+{
+    // Too old message, it should not be retranslated
+    if (mnem.nBlock < nBestHeight - 100)
+        return 20;
+
+    // Too old message
+    if (mnem.nBlock < nBestHeight- 50)
+        return 0;
+
+    CKeyID KeyID = MN_GetMasternodeKeyID(mnem.outpoint);
+    if (!KeyID)
+        return 20;
+
+    // Check signature
     CPubKey pubkey;
     pubkey.RecoverCompact(mnem.GetHashForSignature(), mnem.signature);
     if (pubkey.GetID() != KeyID)
@@ -272,6 +302,9 @@ static int MN_ProcessExistenceMsg_Impl(const CMasterNodeExistenceMsg& mnem)
 
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem)
 {
+    if (IsInitialBlockDownload())
+        return;
+
     int misbehave = MN_ProcessExistenceMsg_Impl(mnem);
     if (misbehave > 0 && pfrom)
         pfrom->Misbehaving(misbehave);
@@ -295,4 +328,18 @@ void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem)
             }
         }
     }
+}
+
+void MN_Start(const COutPoint& outpoint, const CKey& key)
+{
+    CMasterNode& mn = getMasterNode(outpoint);
+    mn.privkey = key;
+    g_OurMasterNodes.insert(outpoint.GetHash());
+}
+
+void MN_Stop(const COutPoint& outpoint)
+{
+    CMasterNode& mn = getMasterNode(outpoint);
+    mn.privkey = CKey();
+    g_OurMasterNodes.erase(outpoint.GetHash());
 }

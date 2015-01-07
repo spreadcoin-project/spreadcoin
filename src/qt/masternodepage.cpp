@@ -72,16 +72,11 @@ void MasternodePage::updateOutputs(int count)
 
     BOOST_FOREACH(PAIRTYPE(QString, std::vector<COutput>) coins, mapCoins)
     {
-        CBitcoinAddress address;
-        address.SetString(coins.first.toUtf8().data());
-        CKeyID keyid;
-        if (!address.GetKeyID(keyid))
-            continue;
-
         BOOST_FOREACH(const COutput& out, coins.second)
         {
             COutPoint outpoint(out.tx->GetHash(), out.i);
-            if (!IsAcceptableMasternodeOutpoint(outpoint))
+            CKeyID keyid = MN_GetMasternodeKeyID(outpoint);
+            if (!keyid)
                 continue;
 
             int iRow = pTable->rowCount();
@@ -99,12 +94,13 @@ void MasternodePage::updateOutputs(int count)
 
 void MasternodePage::switchMasternode(const CKeyID &keyid, const COutPoint &outpoint, bool state)
 {
-    CMasterNode& mn = getMasterNode(outpoint);
      if (!state)
-         mn.privkey = CKey();
+        MN_Stop(outpoint);
      else
      {
+         CKey key;
          WalletModel::UnlockContext context(model->requestUnlock());
-         pwalletMain->GetKey(keyid, mn.privkey);
+         pwalletMain->GetKey(keyid, key);
+         MN_Start(outpoint, key);
      }
 }
