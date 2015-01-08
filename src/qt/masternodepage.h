@@ -41,6 +41,9 @@ public:
 
     void setModel(WalletModel *model);
 
+protected:
+    void showEvent(QShowEvent *) override;
+
 private:
     Ui::MasternodePage *ui;
 
@@ -48,7 +51,7 @@ private:
 
 private slots:
 
-    void updateOutputs(int count);
+    void updateMasternodes();
     void switchMasternode(const CKeyID &keyid, const COutPoint &outpoint, bool state);
 };
 

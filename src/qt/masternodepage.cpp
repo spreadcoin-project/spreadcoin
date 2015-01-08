@@ -12,8 +12,9 @@ enum EColumn
 {
     C_ADDRESS,
     C_AMOUNT,
-    C_OUTPUT,
+    C_SCORE,
     C_CONTROL,
+    C_OUTPUT,
 
     C_COUNT,
 };
@@ -42,6 +43,7 @@ MasternodePage::MasternodePage(QWidget *parent) :
     ui->tableWidget->setHorizontalHeaderItem((int)C_AMOUNT,  new QTableWidgetItem(tr("Amount")));
     ui->tableWidget->setHorizontalHeaderItem((int)C_OUTPUT,  new QTableWidgetItem(tr("Output")));
     ui->tableWidget->setHorizontalHeaderItem((int)C_CONTROL, new QTableWidgetItem(tr("Control")));
+    ui->tableWidget->setHorizontalHeaderItem((int)C_SCORE,   new QTableWidgetItem(tr("Score")));
 }
 
 MasternodePage::~MasternodePage()
@@ -53,12 +55,16 @@ void MasternodePage::setModel(WalletModel *model)
 {
     this->model = model;
 
-    connect(model, SIGNAL(numTransactionsChanged(int)), this, SLOT(updateOutputs(count)));
-
-    updateOutputs(0);
+ //   connect(model, SIGNAL(numTransactionsChanged(int)), this, SLOT(updateOutputs(count)));
+ //   updateOutputs(0);
 }
 
-void MasternodePage::updateOutputs(int count)
+void MasternodePage::showEvent(QShowEvent *)
+{
+    updateMasternodes();
+}
+
+void MasternodePage::updateMasternodes()
 {
     if (IsInitialBlockDownload())
         return;
@@ -66,30 +72,40 @@ void MasternodePage::updateOutputs(int count)
     std::map<QString, std::vector<COutput> > mapCoins;
     model->listCoins(mapCoins);
 
-    QTableWidget* pTable = ui->tableWidget;
-
-    pTable->setRowCount(0);
-
     BOOST_FOREACH(PAIRTYPE(QString, std::vector<COutput>) coins, mapCoins)
     {
         BOOST_FOREACH(const COutput& out, coins.second)
         {
             COutPoint outpoint(out.tx->GetHash(), out.i);
-            CKeyID keyid = MN_GetMasternodeKeyID(outpoint);
-            if (!keyid)
-                continue;
+            MN_SetMy(outpoint, true);
+        }
+    }
 
-            int iRow = pTable->rowCount();
-            pTable->setRowCount(iRow + 1);
-            pTable->setItem(iRow, (int)C_ADDRESS, new QTableWidgetItem(coins.first));
-            pTable->setItem(iRow, (int)C_AMOUNT, new QTableWidgetItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, out.tx->vout[out.i].nValue)));
-            pTable->setItem(iRow, (int)C_OUTPUT, new QTableWidgetItem(QString("%1:%2").arg(out.tx->GetHash().ToString().c_str()).arg(out.i)));
+    QTableWidget* pTable = ui->tableWidget;
+    pTable->setRowCount(0);
 
-            MasternodeCheckbox* pButton = new MasternodeCheckbox(keyid, outpoint);
+    std::vector<CMasternodeInfo> vmninfo = MN_GetInfoAll();
+    for (const CMasternodeInfo& info : vmninfo)
+    {
+        CBitcoinAddress address;
+        address.Set(info.keyid);
+
+        int iRow = pTable->rowCount();
+        pTable->setRowCount(iRow + 1);
+        pTable->setItem(iRow, (int)C_ADDRESS, new QTableWidgetItem(address.ToString().c_str()));
+    //    pTable->setItem(iRow, (int)C_AMOUNT, new QTableWidgetItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, out.tx->vout[out.i].nValue)));
+        pTable->setItem(iRow, (int)C_OUTPUT, new QTableWidgetItem(QString("%1:%2").arg(info.outpoint.hash.ToString().c_str()).arg(info.outpoint.n)));
+        pTable->setItem(iRow, (int)C_SCORE, new QTableWidgetItem(QString("%1").arg(info.score)));
+
+        if (info.my)
+        {
+            MasternodeCheckbox* pButton = new MasternodeCheckbox(info.keyid, info.outpoint);
+            pButton->setChecked(info.running);
             connect(pButton, SIGNAL(switchMasternode(const CKeyID&, const COutPoint&, bool)), this, SLOT(switchMasternode(const CKeyID&, const COutPoint&, bool)));
             pTable->setCellWidget(iRow, (int)C_CONTROL, pButton);
         }
     }
+
 }
 
 void MasternodePage::switchMasternode(const CKeyID &keyid, const COutPoint &outpoint, bool state)

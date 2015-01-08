@@ -38,11 +38,35 @@ public:
     )
 };
 
+struct CMasternodeInfo
+{
+    CKeyID    keyid;
+    COutPoint outpoint;
+    double    score;
+    bool      my;
+    bool      running; // only for our masternodes
+
+    CMasternodeInfo()
+    {
+        score = 0;
+        my = false;
+        running = false;
+    }
+
+    bool isValid() const
+    {
+        return keyid != 0;
+    }
+};
+
 void MN_Start(const COutPoint& outpoint, const CKey& key);
 void MN_Stop(const COutPoint& outpoint);
-CKeyID MN_GetMasternodeKeyID(const COutPoint& outpoint);
+CKeyID MN_GetKeyID(const COutPoint& outpoint);
 void MN_ProcessBlocks();
 void MN_ProcessInstantTx(const CTransaction& tx);
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
+bool MN_SetMy(const COutPoint& outpoint, bool my);
+//CMasternodeInfo MN_GetInfo(const COutPoint& outpoint);
+std::vector<CMasternodeInfo> MN_GetInfoAll();
 
 #endif // MASTERNODES_H

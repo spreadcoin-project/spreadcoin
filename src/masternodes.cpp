@@ -45,6 +45,10 @@ public:
     // Masternode indentifier
     COutPoint outpoint;
 
+    CKeyID keyid;
+
+    bool my = false;
+
     // Only for our masternodes
     CKey privkey;
 
@@ -56,7 +60,7 @@ public:
     double GetScore() const;
 
     // Which blocks should be signed by this masternode to prove that it is running
-    void GetExistenceBlocks(std::vector<int>& v) const;
+    std::vector<int> GetExistenceBlocks() const;
 
     // Returns misbehave value or -1 if everything is ok.
     int AddExistenceMsg(const CMasterNodeExistenceMsg& msg);
@@ -73,12 +77,12 @@ CMasterNode::CMasterNode()
     misbehaving = false;
 }
 
-void CMasterNode::GetExistenceBlocks(std::vector<int> &v) const
+std::vector<int> CMasterNode::GetExistenceBlocks() const
 {
-    v.clear();
+    std::vector<int> v;
 
     if (nBestHeight < 4*g_AnnounceExistenceRestartPeriod)
-        return;
+        return v;
 
     int nCurHeight = nBestHeight;
     int nBlock = nCurHeight/g_AnnounceExistenceRestartPeriod*g_AnnounceExistenceRestartPeriod;
@@ -101,6 +105,7 @@ void CMasterNode::GetExistenceBlocks(std::vector<int> &v) const
             }
         }
     }
+    return v;
 }
 
 int CMasterNode::AddExistenceMsg(const CMasterNodeExistenceMsg& newMsg)
@@ -139,16 +144,17 @@ double CMasterNode::GetScore() const
     if (misbehaving)
         return 99999999999.0;
 
-    std::vector<int> vblocks;
-    GetExistenceBlocks(vblocks);
+    std::vector<int> vblocks = GetExistenceBlocks();
 
     double score = 0.0;
 
+    int nblocks = 0;
     for (uint32_t i = 0; i < vblocks.size(); i++)
     {
         // FIXME: count our ignorance
         if (vblocks[i] <= g_InitialBlock)
             continue;
+        nblocks++;
 
         CBlockIndex* pBlock = FindBlockByHeight(vblocks[i]);
 
@@ -163,7 +169,7 @@ double CMasterNode::GetScore() const
                 }
                 else
                 {
-                    timeDelta = existenceMsgs[j].nReceiveTime - pBlock->nReceiveTime;
+                    timeDelta = (existenceMsgs[j].nReceiveTime - pBlock->nReceiveTime)*0.001;
                 }
                 break;
             }
@@ -172,7 +178,7 @@ double CMasterNode::GetScore() const
     }
 
     if (vblocks.size() != 0.0)
-        score /= vblocks.size();
+        score /= nblocks;
 
     return score;
 }
@@ -180,7 +186,11 @@ double CMasterNode::GetScore() const
 CMasterNode& getMasterNode(const COutPoint& outpoint)
 {
     CMasterNode& mn = g_MasterNodes[outpoint.GetHash()];
-    mn.outpoint = outpoint;
+    if (!mn.keyid)
+    {
+        mn.outpoint = outpoint;
+        mn.keyid = MN_GetKeyID(outpoint);
+    }
     return mn;
 }
 
@@ -217,8 +227,7 @@ void MN_ProcessBlocks()
             CMasterNode& mn = g_MasterNodes[hashMN];
             assert (mn.privkey.IsValid());
 
-            std::vector<int> vblocks;
-            mn.GetExistenceBlocks(vblocks);
+            std::vector<int> vblocks = mn.GetExistenceBlocks();
             if (std::find(vblocks.begin(), vblocks.end(), pBlock->nHeight) == vblocks.end())
                 continue;
 
@@ -233,7 +242,7 @@ void MN_ProcessBlocks()
     }
 }
 
-CKeyID MN_GetMasternodeKeyID(const COutPoint& outpoint)
+CKeyID MN_GetKeyID(const COutPoint& outpoint)
 {
     CValidationState state;
     CTransaction tx;
@@ -281,7 +290,7 @@ static int MN_ProcessExistenceMsg_Impl(const CMasterNodeExistenceMsg& mnem)
     if (mnem.nBlock < nBestHeight- 50)
         return 0;
 
-    CKeyID KeyID = MN_GetMasternodeKeyID(mnem.outpoint);
+    CKeyID KeyID = MN_GetKeyID(mnem.outpoint);
     if (!KeyID)
         return 20;
 
@@ -339,4 +348,49 @@ void MN_Stop(const COutPoint& outpoint)
     CMasterNode& mn = getMasterNode(outpoint);
     mn.privkey = CKey();
     g_OurMasterNodes.erase(outpoint.GetHash());
+}
+
+bool MN_SetMy(const COutPoint& outpoint, bool my)
+{
+    if (!MN_GetKeyID(outpoint))
+        return false;
+
+    CMasterNode& mn = getMasterNode(outpoint);
+    mn.my = my;
+    return true;
+}
+/*
+CMasternodeInfo MN_GetInfo(const COutPoint& outpoint)
+{
+    if (!MN_GetKeyID(outpoint))
+        return CMasternodeInfo();
+
+    CMasterNode& mn = getMasterNode(outpoint);
+
+    CMasternodeInfo info;
+    info.outpoint = mn.outpoint;
+    info.score = mn.GetScore();
+    info.my_and_running = mn.privkey.IsValid();
+    info.keyid = mn.keyid;
+
+    return info;
+}*/
+
+std::vector<CMasternodeInfo> MN_GetInfoAll()
+{
+    std::vector<CMasternodeInfo> v;
+    for (const std::pair<uint256, CMasterNode>& pair : g_MasterNodes)
+    {
+        const CMasterNode& mn = pair.second;
+
+        CMasternodeInfo info;
+        info.outpoint = mn.outpoint;
+        info.score = mn.GetScore();
+        info.my = mn.my;
+        info.running = mn.privkey.IsValid();
+        info.keyid = mn.keyid;
+
+        v.push_back(info);
+    }
+    return v;
 }
