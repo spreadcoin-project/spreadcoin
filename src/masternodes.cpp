@@ -359,22 +359,6 @@ bool MN_SetMy(const COutPoint& outpoint, bool my)
     mn.my = my;
     return true;
 }
-/*
-CMasternodeInfo MN_GetInfo(const COutPoint& outpoint)
-{
-    if (!MN_GetKeyID(outpoint))
-        return CMasternodeInfo();
-
-    CMasterNode& mn = getMasterNode(outpoint);
-
-    CMasternodeInfo info;
-    info.outpoint = mn.outpoint;
-    info.score = mn.GetScore();
-    info.my_and_running = mn.privkey.IsValid();
-    info.keyid = mn.keyid;
-
-    return info;
-}*/
 
 std::vector<CMasternodeInfo> MN_GetInfoAll()
 {

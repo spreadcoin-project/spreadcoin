@@ -54,9 +54,6 @@ MasternodePage::~MasternodePage()
 void MasternodePage::setModel(WalletModel *model)
 {
     this->model = model;
-
- //   connect(model, SIGNAL(numTransactionsChanged(int)), this, SLOT(updateOutputs(count)));
- //   updateOutputs(0);
 }
 
 void MasternodePage::showEvent(QShowEvent *)
@@ -66,6 +63,8 @@ void MasternodePage::showEvent(QShowEvent *)
 
 void MasternodePage::updateMasternodes()
 {
+    LOCK(cs_main);
+
     if (IsInitialBlockDownload())
         return;
 
@@ -105,18 +104,19 @@ void MasternodePage::updateMasternodes()
             pTable->setCellWidget(iRow, (int)C_CONTROL, pButton);
         }
     }
-
 }
 
 void MasternodePage::switchMasternode(const CKeyID &keyid, const COutPoint &outpoint, bool state)
 {
-     if (!state)
+    LOCK(cs_main);
+
+    if (!state)
         MN_Stop(outpoint);
-     else
-     {
-         CKey key;
-         WalletModel::UnlockContext context(model->requestUnlock());
-         pwalletMain->GetKey(keyid, key);
-         MN_Start(outpoint, key);
-     }
+    else
+    {
+        CKey key;
+        WalletModel::UnlockContext context(model->requestUnlock());
+        pwalletMain->GetKey(keyid, key);
+        MN_Start(outpoint, key);
+    }
 }
