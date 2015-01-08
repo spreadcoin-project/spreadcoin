@@ -6,12 +6,12 @@
 #include "txdb.h"
 #include "masternodes.h"
 
-static const int g_MasternodeMinConfirmations = 1000;
+static const int g_MasternodeMinConfirmations = 10;
 
-static const int g_AnnounceExistenceRestartPeriod = 2000;
-static const int g_AnnounceExistencePeriod = 500;
+static const int g_AnnounceExistenceRestartPeriod = 20;
+static const int g_AnnounceExistencePeriod = 5;
 
-
+// If masternode doesn't respond to some message we assume that it has responded in this amount of time.
 static const double g_PenaltyTime = 500.0;
 
 // Blockchain length at startup after sync. We don't know anythyng about how well masternodes were behaving before this block.
@@ -38,6 +38,8 @@ class CMasterNode
     // Messages which confirm that this masternode still exists
     std::vector<CReceivedExistenceMsg> existenceMsgs;
 
+    bool misbehaving;
+
 public:
 
     // Masternode indentifier
@@ -50,6 +52,7 @@ public:
 
     // Score based on how fast this node broadcasts its responces.
     // Miners use this value to elect new masternodes or remove old ones.
+    // Lower values are better.
     double GetScore() const;
 
     // Which blocks should be signed by this masternode to prove that it is running
@@ -67,11 +70,15 @@ static boost::unordered_set<uint256> g_OurMasterNodes;
 
 CMasterNode::CMasterNode()
 {
+    misbehaving = false;
 }
 
 void CMasterNode::GetExistenceBlocks(std::vector<int> &v) const
 {
     v.clear();
+
+    if (nBestHeight < 4*g_AnnounceExistenceRestartPeriod)
+        return;
 
     int nCurHeight = nBestHeight;
     int nBlock = nCurHeight/g_AnnounceExistenceRestartPeriod*g_AnnounceExistenceRestartPeriod;
@@ -84,10 +91,11 @@ void CMasterNode::GetExistenceBlocks(std::vector<int> &v) const
         hasher << pSeedBlock->GetBlockHash();
         hasher << outpoint;
 
-        int Shift = hasher.GetHash().Get64(0) % g_AnnounceExistencePeriod;
+        uint64_t hash = hasher.GetHash().Get64(0);
+        int Shift = hash % g_AnnounceExistencePeriod;
         for (int j = nSeedBlock + Shift; j < nSeedBlock + g_AnnounceExistenceRestartPeriod; j += g_AnnounceExistencePeriod)
         {
-            if (j > nCurHeight - g_AnnounceExistenceRestartPeriod)
+            if (j <= nBestHeight && j > nCurHeight - g_AnnounceExistenceRestartPeriod)
             {
                 v.push_back(j);
             }
@@ -97,13 +105,6 @@ void CMasterNode::GetExistenceBlocks(std::vector<int> &v) const
 
 int CMasterNode::AddExistenceMsg(const CMasterNodeExistenceMsg& newMsg)
 {
-    std::vector<int> vblocks;
-    GetExistenceBlocks(vblocks);
-
-    // Check that this masternode should sign this block
-    if (std::find(vblocks.begin(), vblocks.end(), newMsg.nBlock) == vblocks.end())
-        return 20;
-
     uint256 hash = newMsg.GetHash();
     for (unsigned int i = 0; i < existenceMsgs.size(); i++)
     {
@@ -111,9 +112,12 @@ int CMasterNode::AddExistenceMsg(const CMasterNodeExistenceMsg& newMsg)
             return 0;
     }
 
-    // FIXME: mark masternode as misbehabing
+    // Check if this masternode sends to many messages
     if (existenceMsgs.size() > g_AnnounceExistenceRestartPeriod/g_AnnounceExistencePeriod*10)
+    {
+        misbehaving = true;
         return 20;
+    }
 
     CReceivedExistenceMsg receivedMsg;
     receivedMsg.msg = newMsg;
@@ -132,6 +136,9 @@ void CMasterNode::Cleanup()
 
 double CMasterNode::GetScore() const
 {
+    if (misbehaving)
+        return 99999999999.0;
+
     std::vector<int> vblocks;
     GetExistenceBlocks(vblocks);
 
@@ -199,8 +206,9 @@ void MN_ProcessBlocks()
     if (g_InitialBlock == 0)
         g_InitialBlock = nBestHeight;
 
-    CBlockIndex* pBlock = pindexBest;
-    while (pBlock->nReceiveTime == 0)
+    for (CBlockIndex* pBlock = pindexBest;
+         pBlock->nHeight > g_InitialBlock && pBlock->nReceiveTime == 0;
+         pBlock = pBlock->pprev)
     {
         pBlock->nReceiveTime = GetMontoneTimeMs();
 
@@ -211,18 +219,7 @@ void MN_ProcessBlocks()
 
             std::vector<int> vblocks;
             mn.GetExistenceBlocks(vblocks);
-
-            bool ShouldSign = false;
-            for (unsigned int i = 0; i < vblocks.size(); i++)
-            {
-                if (vblocks[i] == pBlock->nHeight)
-                {
-                    ShouldSign = true;
-                    break;
-                }
-            }
-
-            if (!ShouldSign)
+            if (std::find(vblocks.begin(), vblocks.end(), pBlock->nHeight) == vblocks.end())
                 continue;
 
             CMasterNodeExistenceMsg mnem;
@@ -231,7 +228,7 @@ void MN_ProcessBlocks()
             mnem.nBlock = pBlock->nHeight;
             mnem.signature = mn.privkey.Sign(mnem.GetHashForSignature());
 
-            MN_ProcessExistenceMsg(nullptr, mnem);
+            MN_ProcessExistenceMsg(NULL, mnem);
         }
     }
 }
