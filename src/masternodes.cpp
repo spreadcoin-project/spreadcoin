@@ -177,7 +177,7 @@ double CMasterNode::GetScore() const
         score += timeDelta;
     }
 
-    if (vblocks.size() != 0.0)
+    if (nblocks != 0)
         score /= nblocks;
 
     return score;
