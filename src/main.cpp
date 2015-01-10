@@ -36,7 +36,7 @@ CTxMemPool mempool;
 unsigned int nTransactionsUpdated = 0;
 
 map<uint256, CBlockIndex*> mapBlockIndex;
-uint256 hashGenesisBlock("0x00000ffd590b1485b3caadc19b22e6379c733355108f107a430458cdf3407ab6"); //mainnet
+uint256 hashGenesisBlock;
 
 static CBigNum bnProofOfWorkLimit(~uint256(0) >> 20); // SpreadCoin: starting difficulty is 1 / 2^20
 CBlockIndex* pindexGenesisBlock = NULL;
