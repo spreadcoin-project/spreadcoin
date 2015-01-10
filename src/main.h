@@ -227,6 +227,7 @@ bool AbortNode(const std::string &msg);
 /** Get hardfork blocks */
 unsigned int getFirstHardforkBlock(); // 10 -> 1 minute blocks
 unsigned int getSecondHardforkBlock(); // Spread mining
+unsigned int getThirdHardforkBlock(); // Masternodes
 /** Get block reward */
 int64 GetBlockValue(int nHeight, int64 nFees);
 
@@ -1319,78 +1320,6 @@ public:
     uint256 ExtractMatches(std::vector<uint256> &vMatch);
 };
 
-#ifdef ENABLE_DARKSEND_FEATURES
-class CMasterNodeVote
-{   
-public:
-    int votes;
-    CScript pubkey;
-    int nVersion;
-    bool setPubkey;
-
-    int64 blockHeight;
-    static const int CURRENT_VERSION=1;
-
-    CMasterNodeVote() {
-        SetNull();
-    }
-
-    void Set(CPubKey& pubKeyIn, int64 blockHeightIn, int votesIn=1)
-    {
-        pubkey.SetDestination(pubKeyIn.GetID());
-        blockHeight = blockHeightIn;
-        votes = votesIn;
-    }
-
-    void Set(CScript pubKeyIn, int64 blockHeightIn, int votesIn=1)
-    {
-        pubkey = pubKeyIn;
-        blockHeight = blockHeightIn;
-        votes = votesIn;
-    }
-
-    void SetNull()
-    {
-        nVersion = CTransaction::CURRENT_VERSION;
-        votes = 0;
-        pubkey = CScript();
-        blockHeight = 0;
-    }
-
-    void Vote()
-    { 
-        votes += 1; 
-    }
-
-    int GetVotes()
-    { 
-        return votes;
-    }
-
-    int GetHeight()
-    { 
-        return blockHeight;
-    }
-
-    CScript& GetPubKey()
-    {
-        return pubkey;
-    }
-
-    IMPLEMENT_SERIALIZE
-    (
-        nVersion = this->nVersion;
-        READWRITE(blockHeight);
-        //printf("blockHeight %"PRI64d"\n", blockHeight);
-        READWRITE(pubkey);
-        //printf("pubkey %s\n", pubkey.ToString().c_str());
-        READWRITE(votes);
-        //printf("votes %d\n", votes);
-    )
-
-
-};
-#endif // ENABLE_DARKSEND_FEATURES
 
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work
@@ -1416,6 +1345,10 @@ public:
     uint256 hashWholeBlock; // proof of whole block knowledge
     CSignature MinerSignature; // proof of private key knowledge
 
+    // Masternode votes:
+    std::vector<COutPoint> vvotesPos;
+    std::vector<COutPoint> vvotesNeg;
+
 #if ENABLE_DARKSEND_FEATURES
     std::vector<CMasterNodeVote> vmn;
 #endif
@@ -1439,6 +1372,11 @@ public:
         {
             READWRITE(hashWholeBlock);
             READWRITE(MinerSignature);
+        }
+        if (nHeight > getThirdHardforkBlock())
+        {
+            READWRITE(vvotesPos);
+            READWRITE(vvotesNeg);
         }
     )
 

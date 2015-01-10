@@ -104,6 +104,11 @@ unsigned int getSecondHardforkBlock()
     return fTestNet? 0 : 43000;
 }
 
+unsigned int getThirdHardforkBlock()
+{
+    return fTestNet? 2200 : 99999999;
+}
+
 //////////////////////////////////////////////////////////////////////////////
 //
 // dispatching functions
@@ -1465,10 +1470,20 @@ CBufferStream<88> CBlockHeader::SerializeHeaderForHash1() const
 
 CBufferStream<185> CBlockHeader::SerializeHeaderForHash2() const
 {
+    uint256 hashContent = hashMerkleRoot;
+    if (nHeight > getThirdHardforkBlock())
+    {
+        CHashWriter hasher(SER_GETHASH, 0);
+        hasher << hashMerkleRoot;
+        hasher << vvotesPos;
+        hasher << vvotesNeg;
+        hashContent = hasher.GetHash();
+    }
+
     CBufferStream<185> Header(SER_GETHASH, 0);
     Header << nVersion;
     Header << hashPrevBlock;
-    Header << hashMerkleRoot;
+    Header << hashContent;
     Header << nTime;
     Header << nBits;
     Header << nHeight;
@@ -1519,6 +1534,11 @@ void CBlock::GetPoKData(CBufferStream<MAX_BLOCK_SIZE>& BlockData) const
     BlockData << nBits;
     BlockData << nHeight;
     // Skip hashWholeBlock because it is what we are computing right now.
+    if (nHeight > getThirdHardforkBlock())
+    {
+        BlockData << vvotesPos;
+        BlockData << vvotesNeg;
+    }
     BlockData << vtx;
 
     while (BlockData.size() % 4 != 0)
@@ -2542,6 +2562,8 @@ bool CBlock::CheckBlock(CValidationState &state, bool fCheckPOW, bool fCheckMerk
     if (vtx.empty() || vtx.size() > MAX_BLOCK_SIZE || ::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION) > MAX_BLOCK_SIZE)
         return state.DoS(100, error("CheckBlock() : size limits failed"));
 
+    if (vvotesNeg.size() + vvotesNeg.size() > g_MaxMasternodeVotes)
+        return state.DoS(100, error("CheckBlock() : too many masternode votes"));
 
     // Check proof of work matches claimed amount
     if (fCheckPOW && !CheckProofOfWork())

@@ -4,6 +4,7 @@
 #include "main.h"
 
 static const int64_t g_MinMasternodeAmount = 1000*COIN;
+static const int g_MaxMasternodeVotes = 10;
 
 // Wrapper for masternode messages
 class CMasterNodeBaseMsg
