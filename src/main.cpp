@@ -17,6 +17,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/unordered_map.hpp>
 
 #include <algorithm>
 #include <boost/assign/list_of.hpp>
@@ -1475,8 +1476,8 @@ CBufferStream<185> CBlockHeader::SerializeHeaderForHash2() const
     {
         CHashWriter hasher(SER_GETHASH, 0);
         hasher << hashMerkleRoot;
-        hasher << vvotesPos;
-        hasher << vvotesNeg;
+        hasher << vvotes[0];
+        hasher << vvotes[1];
         hashContent = hasher.GetHash();
     }
 
@@ -1536,8 +1537,8 @@ void CBlock::GetPoKData(CBufferStream<MAX_BLOCK_SIZE>& BlockData) const
     // Skip hashWholeBlock because it is what we are computing right now.
     if (nHeight > getThirdHardforkBlock())
     {
-        BlockData << vvotesPos;
-        BlockData << vvotesNeg;
+        BlockData << vvotes[0];
+        BlockData << vvotes[1];
     }
     BlockData << vtx;
 
@@ -2028,6 +2029,15 @@ bool CBlock::DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoin
         }
     }
 
+    // Undo masternode election
+    for (int j = 0; j < 2; j++)
+    {
+        for (const COutPoint& outpoint : pindex->velected[j])
+        {
+            assert(MN_Elect(outpoint, !j));
+        }
+    }
+
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev);
 
@@ -2205,6 +2215,34 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
         CDiskBlockIndex blockindex(pindex);
         if (!pblocktree->WriteBlockIndex(blockindex))
             return state.Abort(_("Failed to write block index"));
+    }
+
+    boost::unordered_map<COutPoint, int> vvotes[2];
+
+    CBlockIndex* pCurBlock = pindex;
+    for (int i = 0; i < g_MasternodesElectionPeriod && pCurBlock; i++)
+    {
+        for (int j = 0; j < 2; j++)
+        {
+            for (COutPoint vote : pCurBlock->vvotes[j])
+            {
+                auto pair = vvotes[j].insert(std::make_pair(vote, 1));
+                if (!pair.second)
+                {
+                    pair.first->second++;
+                }
+            }
+        }
+        pCurBlock = pCurBlock->pprev;
+    }
+
+    for (int j = 0; j < 2; j++)
+    {
+        for (const std::pair<COutPoint, int>& pair : vvotes[j])
+        {
+            if (pair.second > g_MasternodesElectionPeriod/2 && MN_Elect(pair.first, j))
+                pindex->velected[j].push_back(pair.first);
+        }
     }
 
     if (fTxIndex)
@@ -2562,7 +2600,7 @@ bool CBlock::CheckBlock(CValidationState &state, bool fCheckPOW, bool fCheckMerk
     if (vtx.empty() || vtx.size() > MAX_BLOCK_SIZE || ::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION) > MAX_BLOCK_SIZE)
         return state.DoS(100, error("CheckBlock() : size limits failed"));
 
-    if (vvotesNeg.size() + vvotesNeg.size() > g_MaxMasternodeVotes)
+    if (vvotes[0].size() + vvotes[1].size() > g_MaxMasternodeVotes)
         return state.DoS(100, error("CheckBlock() : too many masternode votes"));
 
     // Check proof of work matches claimed amount

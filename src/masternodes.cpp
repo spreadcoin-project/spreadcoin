@@ -17,11 +17,6 @@ static const double g_PenaltyTime = 500.0;
 // Blockchain length at startup after sync. We don't know anythyng about how well masternodes were behaving before this block.
 static int32_t g_InitialBlock = 0;
 
-static std::size_t hash_value(uint256 v)
-{
-    return (std::size_t)v.Get64(0);
-}
-
 static int64_t GetMontoneTimeMs()
 {
     return boost::chrono::duration_cast<boost::chrono::milliseconds>(boost::chrono::steady_clock::now().time_since_epoch()).count();
@@ -69,8 +64,9 @@ public:
     void Cleanup();
 };
 
-static boost::unordered_map<uint256, CMasterNode> g_MasterNodes;
-static boost::unordered_set<uint256> g_OurMasterNodes;
+static boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
+static boost::unordered_set<COutPoint> g_OurMasterNodes;
+static boost::unordered_set<COutPoint> g_ElectedMasternodes;
 
 CMasterNode::CMasterNode()
 {
@@ -185,7 +181,7 @@ double CMasterNode::GetScore() const
 
 CMasterNode& getMasterNode(const COutPoint& outpoint)
 {
-    CMasterNode& mn = g_MasterNodes[outpoint.GetHash()];
+    CMasterNode& mn = g_MasterNodes[outpoint];
     if (!mn.keyid)
     {
         mn.outpoint = outpoint;
@@ -222,9 +218,9 @@ void MN_ProcessBlocks()
     {
         pBlock->nReceiveTime = GetMontoneTimeMs();
 
-        for (uint256 hashMN : g_OurMasterNodes)
+        for (COutPoint outpoint : g_OurMasterNodes)
         {
-            CMasterNode& mn = g_MasterNodes[hashMN];
+            CMasterNode& mn = g_MasterNodes[outpoint];
             assert (mn.privkey.IsValid());
 
             std::vector<int> vblocks = mn.GetExistenceBlocks();
@@ -340,14 +336,14 @@ void MN_Start(const COutPoint& outpoint, const CKey& key)
 {
     CMasterNode& mn = getMasterNode(outpoint);
     mn.privkey = key;
-    g_OurMasterNodes.insert(outpoint.GetHash());
+    g_OurMasterNodes.insert(outpoint);
 }
 
 void MN_Stop(const COutPoint& outpoint)
 {
     CMasterNode& mn = getMasterNode(outpoint);
     mn.privkey = CKey();
-    g_OurMasterNodes.erase(outpoint.GetHash());
+    g_OurMasterNodes.erase(outpoint);
 }
 
 bool MN_SetMy(const COutPoint& outpoint, bool my)
@@ -363,7 +359,7 @@ bool MN_SetMy(const COutPoint& outpoint, bool my)
 std::vector<CMasternodeInfo> MN_GetInfoAll()
 {
     std::vector<CMasternodeInfo> v;
-    for (const std::pair<uint256, CMasterNode>& pair : g_MasterNodes)
+    for (const std::pair<COutPoint, CMasterNode>& pair : g_MasterNodes)
     {
         const CMasterNode& mn = pair.second;
 
@@ -377,4 +373,18 @@ std::vector<CMasternodeInfo> MN_GetInfoAll()
         v.push_back(info);
     }
     return v;
+}
+
+bool MN_Elect(const COutPoint& outpoint, bool elect)
+{
+    if (elect)
+    {
+        if (!MN_GetKeyID(outpoint))
+            return false;
+        return g_ElectedMasternodes.insert(outpoint).second;
+    }
+    else
+    {
+        return g_ElectedMasternodes.erase(outpoint) != 0;
+    }
 }

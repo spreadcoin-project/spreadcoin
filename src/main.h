@@ -358,7 +358,12 @@ public:
     }
 };
 
-
+inline std::size_t hash_value(COutPoint p)
+{
+    std::size_t seed = (std::size_t)p.hash.Get64(0);
+    boost::hash_combine(seed, p.n);
+    return seed;
+}
 
 
 /** An input of a transaction.  It contains the location of the previous
@@ -1346,12 +1351,7 @@ public:
     CSignature MinerSignature; // proof of private key knowledge
 
     // Masternode votes:
-    std::vector<COutPoint> vvotesPos;
-    std::vector<COutPoint> vvotesNeg;
-
-#if ENABLE_DARKSEND_FEATURES
-    std::vector<CMasterNodeVote> vmn;
-#endif
+    std::vector<COutPoint> vvotes[2];
 
     CBlockHeader()
     {
@@ -1375,8 +1375,8 @@ public:
         }
         if (nHeight > getThirdHardforkBlock())
         {
-            READWRITE(vvotesPos);
-            READWRITE(vvotesNeg);
+            READWRITE(vvotes[0]);
+            READWRITE(vvotes[1]);
         }
     )
 
@@ -1794,6 +1794,12 @@ public:
     uint256 hashWholeBlock;
     CSignature MinerSignature;
 
+    // Masternode votes:
+    std::vector<COutPoint> vvotes[2];
+
+    // Keep list of [de]elected nodes at this step so that we can undone it
+    std::vector<COutPoint> velected[2];
+
     CBlockIndex()
     {
         phashBlock = NULL;
@@ -1840,6 +1846,8 @@ public:
         nBits          = block.nBits;
         nNonce         = block.nNonce;
         MinerSignature = block.MinerSignature;
+        vvotes[0]      = block.vvotes[0];
+        vvotes[1]      = block.vvotes[1];
     }
 
     CDiskBlockPos GetBlockPos() const {
@@ -1873,6 +1881,8 @@ public:
         block.nHeight        = nHeight;
         block.nNonce         = nNonce;
         block.MinerSignature = MinerSignature;
+        block.vvotes[0]      = vvotes[0];
+        block.vvotes[1]      = vvotes[1];
         return block;
     }
 

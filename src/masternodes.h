@@ -5,6 +5,7 @@
 
 static const int64_t g_MinMasternodeAmount = 1000*COIN;
 static const int g_MaxMasternodeVotes = 10;
+static const int g_MasternodesElectionPeriod = 200;
 
 // Wrapper for masternode messages
 class CMasterNodeBaseMsg
@@ -69,5 +70,7 @@ void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
 bool MN_SetMy(const COutPoint& outpoint, bool my);
 //CMasternodeInfo MN_GetInfo(const COutPoint& outpoint);
 std::vector<CMasternodeInfo> MN_GetInfoAll();
+
+bool MN_Elect(const COutPoint& outpoint, bool elect);
 
 #endif // MASTERNODES_H
