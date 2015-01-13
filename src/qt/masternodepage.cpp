@@ -83,23 +83,24 @@ void MasternodePage::updateMasternodes()
     QTableWidget* pTable = ui->tableWidget;
     pTable->setRowCount(0);
 
-    std::vector<CMasternodeInfo> vmninfo = MN_GetInfoAll();
-    for (const CMasternodeInfo& info : vmninfo)
+    for (const std::pair<COutPoint, CMasterNode>& pair : g_MasterNodes)
     {
+        const CMasterNode& mn = pair.second;
+
         CBitcoinAddress address;
-        address.Set(info.keyid);
+        address.Set(mn.keyid);
 
         int iRow = pTable->rowCount();
         pTable->setRowCount(iRow + 1);
         pTable->setItem(iRow, (int)C_ADDRESS, new QTableWidgetItem(address.ToString().c_str()));
     //    pTable->setItem(iRow, (int)C_AMOUNT, new QTableWidgetItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, out.tx->vout[out.i].nValue)));
-        pTable->setItem(iRow, (int)C_OUTPUT, new QTableWidgetItem(QString("%1:%2").arg(info.outpoint.hash.ToString().c_str()).arg(info.outpoint.n)));
-        pTable->setItem(iRow, (int)C_SCORE, new QTableWidgetItem(QString("%1").arg(info.score)));
+        pTable->setItem(iRow, (int)C_OUTPUT, new QTableWidgetItem(QString("%1:%2").arg(mn.outpoint.hash.ToString().c_str()).arg(mn.outpoint.n)));
+        pTable->setItem(iRow, (int)C_SCORE, new QTableWidgetItem(QString("%1").arg(mn.GetScore())));
 
-        if (info.my)
+        if (mn.my)
         {
-            MasternodeCheckbox* pButton = new MasternodeCheckbox(info.keyid, info.outpoint);
-            pButton->setChecked(info.running);
+            MasternodeCheckbox* pButton = new MasternodeCheckbox(mn.keyid, mn.outpoint);
+            pButton->setChecked(mn.privkey.IsValid());
             connect(pButton, SIGNAL(switchMasternode(const CKeyID&, const COutPoint&, bool)), this, SLOT(switchMasternode(const CKeyID&, const COutPoint&, bool)));
             pTable->setCellWidget(iRow, (int)C_CONTROL, pButton);
         }
