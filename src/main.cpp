@@ -1579,6 +1579,23 @@ uint256 CBlock::HashPoKData(const CBufferStream<MAX_BLOCK_SIZE>& PoKData)
     return hash;
 }
 
+CKeyID extractKeyID(const CScript& OutScript)
+{
+    if (OutScript.size() != 22)
+        return CKeyID(0);
+    CTxDestination Dest;
+    if (!ExtractDestination(OutScript, Dest))
+        return CKeyID(0);
+    CBitcoinAddress Address;
+    if (!Address.Set(Dest) || !Address.IsValid())
+        return CKeyID(0);
+    CKeyID KeyID;
+    if (!Address.GetKeyID(KeyID))
+        return CKeyID(0);
+
+    return KeyID;
+}
+
 bool CBlock::CheckProofOfWorkLite() const
 {
     CBigNum bnTarget;
@@ -1596,34 +1613,42 @@ bool CBlock::CheckProofOfWorkLite() const
         return true;
 
     if (vtx.size() < 1)
-        return error("CheckSignature() : no coinbase transaction");
+        return error("CheckProofOfWorkLite() : no coinbase transaction");
 
     // Check coinbase
     const CTransaction& CoinBase = vtx[0];
     if (!CoinBase.IsCoinBase())
-        return error("CheckSignature() : first transaction is not coinbase");
-    if (CoinBase.vout.size() != 1)
-        return error("CheckSignature() : coinbase doesn't have exactly one output");
+        return error("CheckProofOfWorkLite() : first transaction is not coinbase");
     if (CoinBase.nLockTime != 0)
-        return error("CheckSignature() : coinbase nLockTime != 0");
+        return error("CheckProofOfWorkLite() : coinbase nLockTime != 0");
+
+    if (nHeight <= getThirdHardforkBlock())
+    {
+        if (CoinBase.vout.size() != 1)
+            return error("CheckProofOfWorkLite() : coinbase doesn't have exactly one output");
+    }
+    else
+    {
+        if (CoinBase.vout.size() != 1 && CoinBase.vout.size() != 2)
+            return error("CheckProofOfWorkLite() : coinbase doesn't have exactly one or two outputs");
+
+        // Correctness of the output will be verified in ConnectBlock
+        if (CoinBase.vout.size() == 2)
+        {
+            int64_t totalValue = CoinBase.vout[0].nValue + CoinBase.vout[1].nValue;
+            if (CoinBase.vout[1].nValue != totalValue*g_MasternodeRewardPercentage/100)
+                return error("CheckProofOfWorkLite() : coinbase masternode reward is incorrect");
+        }
+    }
 
     // Extract miner's address from coinbase
-    const CScript& OutScript = CoinBase.vout[0].scriptPubKey;
-    if (OutScript.size() != 22)
-        return error("CheckSignature() : coinbase OutScript.size() != 22");
-    CTxDestination Dest;
-    if (!ExtractDestination(OutScript, Dest))
-        return error("CheckSignature() : coinbase has non-standard output");
-    CBitcoinAddress Address;
-    if (!Address.Set(Dest) || !Address.IsValid())
-        return error("CheckSignature() : can't extract address from coinbase");
-    CKeyID KeyID;
-    if (!Address.GetKeyID(KeyID))
-        return error("CheckSignature() : coinbase address is not pubkeyhash");
+    CKeyID KeyID = extractKeyID(CoinBase.vout[0].scriptPubKey);
+    if (!KeyID)
+        return error("CheckProofOfWorkLite() : couldn't extract key id from coinbase");
 
     // Check miner's signature
     if (GetRewardAddress().GetID() != KeyID)
-        return error("CheckSignature() : incorrect signature");
+        return error("CheckProofOfWorkLite() : incorrect signature");
 
     return true;
 }
@@ -2217,31 +2242,50 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
             return state.Abort(_("Failed to write block index"));
     }
 
-    boost::unordered_map<COutPoint, int> vvotes[2];
-
-    CBlockIndex* pCurBlock = pindex;
-    for (int i = 0; i < g_MasternodesElectionPeriod && pCurBlock; i++)
+    if (nHeight > getThirdHardforkBlock())
     {
-        for (int j = 0; j < 2; j++)
+        boost::unordered_map<COutPoint, int> vvotes[2];
+
+        CBlockIndex* pCurBlock = pindex->pprev;
+        for (int i = 0; i < g_MasternodesElectionPeriod && pCurBlock; i++)
         {
-            for (COutPoint vote : pCurBlock->vvotes[j])
+            for (int j = 0; j < 2; j++)
             {
-                auto pair = vvotes[j].insert(std::make_pair(vote, 1));
-                if (!pair.second)
+                for (COutPoint vote : pCurBlock->vvotes[j])
                 {
-                    pair.first->second++;
+                    auto pair = vvotes[j].insert(std::make_pair(vote, 1));
+                    if (!pair.second)
+                    {
+                        pair.first->second++;
+                    }
                 }
             }
+            pCurBlock = pCurBlock->pprev;
         }
-        pCurBlock = pCurBlock->pprev;
-    }
 
-    for (int j = 0; j < 2; j++)
-    {
-        for (const std::pair<COutPoint, int>& pair : vvotes[j])
+        for (int j = 0; j < 2; j++)
         {
-            if (pair.second > g_MasternodesElectionPeriod/2 && MN_Elect(pair.first, j))
-                pindex->velected[j].push_back(pair.first);
+            for (const std::pair<COutPoint, int>& pair : vvotes[j])
+            {
+                if (pair.second > g_MasternodesElectionPeriod/2 && MN_Elect(pair.first, j))
+                    pindex->velected[j].push_back(pair.first);
+            }
+        }
+
+        CMasterNode* pCurrentMN = MN_NextPayee(pindex->pprev->mn);
+        if (!pCurrentMN)
+        {
+            if (vtx[0].vout.size() != 1)
+                return state.DoS(100, error("ConnectBlock() : unnecessary masternode payment"));
+        }
+        else
+        {
+            if (vtx[0].vout.size() != 2)
+                return state.DoS(100, error("ConnectBlock() : no masternode payment"));
+            if (pCurrentMN->keyid != extractKeyID(vtx[0].vout[1].scriptPubKey))
+                return state.DoS(100, error("ConnectBlock() : wrong masternode payment"));
+
+            pindex->mn = pCurrentMN->outpoint;
         }
     }
 
@@ -2614,146 +2658,6 @@ bool CBlock::CheckBlock(CValidationState &state, bool fCheckPOW, bool fCheckMerk
     // First transaction must be coinbase, the rest must not be
     if (vtx.empty() || !vtx[0].IsCoinBase())
         return state.DoS(100, error("CheckBlock() : first tx is not coinbase"));
-
-#if ENABLE_DARKSEND_FEATURES
-    bool MasternodePayments = MasterNodePaymentsOn();
-    bool EnforceMasternodePayments = MasterNodePaymentsEnforcing();
-
-    if(MasternodePayments && EnforceMasternodePayments)
-    {
-        LOCK2(cs_main, mempool.cs);
-
-        CBlockIndex* pindexPrev = NULL;
-
-        CBlock blockTmp;
-        int votingRecordsBlockPrev = 0;
-        int matchingVoteRecords = 0;
-        int badVote = 0;
-        int foundMasterNodePayment = 0;
-        int removedMasterNodePayments = 0;
-
-        int64 masternodePaymentAmount = vtx[0].GetValueOut()/5;
-        bool fIsInitialDownload = IsInitialBlockDownload();
-        
-        CBlock blockLast;
-        
-        // Work back to the first block in the orphan chain
-        if (mapBlockIndex.count(hashPrevBlock)){
-            printf("CheckBlock() : loading prev block  %s\n", hashPrevBlock.ToString().c_str());
-            pindexPrev = mapBlockIndex[hashPrevBlock];
-            if(!blockLast.ReadFromDisk(pindexPrev)){
-                return error("CheckBlock() : Load previous block failed");
-            }
-        } else {
-            // no previous block, can't check votes
-            fCheckVotes = false;
-            pindexPrev = NULL;
-        }
-
-        if (!fCheckVotes) EnforceMasternodePayments = false;
-
-        if (pindexPrev != NULL && !fIsInitialDownload){
-            {
-                if(blockLast.GetHash() != pindexPrev->GetBlockHash()){
-                    printf ("CheckBlock() : blockLast.GetHash() != pindexPrev->GetBlockHash() : %s != %s\n", blockLast.GetHash().ToString().c_str(), pindexPrev->GetBlockHash().ToString().c_str());
-                    if(EnforceMasternodePayments) return state.DoS(100, error("CheckBlock() : blockLast.GetHash() != pindexPrev->GetBlockHash()"));
-                }
-
-                printf ("CheckBlock() : nHeight : %d\n", pindexPrev->nHeight);
-                printf ("CheckBlock() : pindexPrev->GetBlockHash() : %s\n", pindexPrev->GetBlockHash().ToString().c_str());
-
-                votingRecordsBlockPrev = blockLast.vmn.size();
-                BOOST_FOREACH(CMasterNodeVote mv1, blockLast.vmn){
-                    if((pindexPrev->nHeight+1) - mv1.GetHeight() > MASTERNODE_PAYMENTS_EXPIRATION){
-                        if(EnforceMasternodePayments) return state.DoS(100, error("CheckBlock() : Vote too old"));
-                    } else if((pindexPrev->nHeight+1) - mv1.GetHeight() == MASTERNODE_PAYMENTS_EXPIRATION){
-                        removedMasterNodePayments++;
-                    } else if(mv1.GetVotes() >= MASTERNODE_PAYMENTS_MIN_VOTES-1 && foundMasterNodePayment < MASTERNODE_PAYMENTS_MAX) {
-                        for (unsigned int i = 0; i < vtx[0].vout.size(); i++)
-                            if(vtx[0].vout[i].nValue == masternodePaymentAmount && mv1.GetPubKey() == vtx[0].vout[i].scriptPubKey) {
-                                foundMasterNodePayment++;
-                            } else if(mv1.GetPubKey() == vtx[0].vout[i].scriptPubKey) {
-                                printf(" BAD MASTERNODE PAYMENT DETECTED:  %"PRI64u"\n", vtx[0].vout[i].nValue);
-                            }
-                    } else {
-                        BOOST_FOREACH(CMasterNodeVote mv2, vmn){
-                            if((mv1.blockHeight == mv2.blockHeight && mv1.GetPubKey() == mv2.GetPubKey())){
-                                matchingVoteRecords++;
-                                if(mv1.GetVotes() != mv2.GetVotes() && mv1.GetVotes()+1 != mv2.GetVotes()) {
-                                    printf(" BAD VOTE DETECTED:  %"PRI64u" %s\n", mv1.blockHeight, mv1.GetPubKey().ToString().c_str());
-                                    printf("  -- %d %d\n", mv1.GetVotes(), mv2.GetVotes());
-                                    badVote++;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                printf ("CheckBlock(): votingRecordsBlockPrev %d\n", votingRecordsBlockPrev);
-                printf ("CheckBlock(): matchingVoteRecords %d\n", matchingVoteRecords);
-                printf ("CheckBlock(): badVote %d\n", badVote);\
-                printf ("CheckBlock(): foundMasterNodePayment %d\n", foundMasterNodePayment);
-                printf ("CheckBlock(): removedMasterNodePayments %d\n", removedMasterNodePayments);
-
-
-                //find new votes, must be for this block height
-                bool foundThisBlock = false;
-                BOOST_FOREACH(CMasterNodeVote mv2, vmn){ 
-                    {      
-                        std::string blockHeight = boost::lexical_cast<std::string>(mv2.blockHeight);
-
-                        CScript pubkey;
-                        pubkey.SetDestination(mv2.pubkey.GetID());
-                        CTxDestination address1;
-                        ExtractDestination(pubkey, address1);
-                        CBitcoinAddress address2(address1);
-
-                        std::string votes = boost::lexical_cast<std::string>(mv2.votes);
-
-                        printf("CheckBlock():  %s       %s       %s\n",  blockHeight.c_str(), address2.ToString().c_str(), votes.c_str());
-                    }
-                    
-                    if(mv2.GetPubKey().size() != 25){
-                        return state.DoS(100, error("CheckBlock() : pubkey wrong size"));
-                    }
-
-                    bool found = false;
-                    if(!foundThisBlock && mv2.blockHeight == pindexPrev->nHeight+1) {
-                        foundThisBlock = true;
-                        continue;
-                    }
-
-                    BOOST_FOREACH(CMasterNodeVote mv1, blockLast.vmn){
-                        if((mv1.blockHeight == mv2.blockHeight && mv1.GetPubKey() == mv2.GetPubKey())){
-                            found = true;
-                        }
-                    }
-                    
-                    if(!found){
-                        printf("CheckBlock() : pubkey wrong size");
-                        if(EnforceMasternodePayments) return state.DoS(100, error("CheckBlock() : Vote not found in previous block"));
-                    }
-                }
-            }
-            
-            
-            if(badVote!=0){
-                printf("CheckBlock() : Bad vote detected");
-                if(EnforceMasternodePayments) return state.DoS(100, error("CheckBlock() : Bad vote detected"));
-            }
-
-            if(matchingVoteRecords+foundMasterNodePayment+removedMasterNodePayments!=votingRecordsBlockPrev) {
-                printf("CheckBlock() : Missing masternode votes");
-                if(EnforceMasternodePayments) return state.DoS(100, error("CheckBlock() : Missing masternode votes"));
-            }
-
-            if(matchingVoteRecords+foundMasterNodePayment>MASTERNODE_PAYMENTS_EXPIRATION){
-                printf("CheckBlock() : Too many vote records found");
-                if(EnforceMasternodePayments) return state.DoS(100, error("CheckBlock() : Too many vote records found"));
-            }
-        }
-    }
-#endif // ENABLE_DARKSEND_FEATURES
 
     for (unsigned int i = 1; i < vtx.size(); i++)
         if (vtx[i].IsCoinBase())

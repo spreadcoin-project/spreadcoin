@@ -11,6 +11,9 @@ static int64_t GetMontoneTimeMs()
 
 static const int g_MasternodeMinConfirmations = 10;
 
+static const unsigned int g_MasternodesStartPayments = 150;
+static const unsigned int g_MasternodesStopPayments = 100;
+
 static const int g_AnnounceExistenceRestartPeriod = 20;
 static const int g_AnnounceExistencePeriod = 5;
 static const int g_MonitoringPeriod = 100;
@@ -23,7 +26,7 @@ static int32_t g_InitialBlock = 0;
 
 boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
 static boost::unordered_set<COutPoint> g_OurMasterNodes;
-static boost::unordered_set<COutPoint> g_ElectedMasternodes;
+static std::set<COutPoint> g_ElectedMasternodes;
 
 std::vector<int> CMasterNode::GetExistenceBlocks() const
 {
@@ -154,17 +157,9 @@ static bool getKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t
     if (out.IsNull())
         return false;
 
-    // Extract masternode's address from coinbase
-    const CScript& OutScript = out.scriptPubKey;
-    if (OutScript.size() != 22)
-        return false;
-    CTxDestination Dest;
-    if (!ExtractDestination(OutScript, Dest))
-        return false;
-    CBitcoinAddress Address;
-    if (!Address.Set(Dest) || !Address.IsValid())
-        return false;
-    if (!Address.GetKeyID(keyid))
+    // Extract masternode's address from transaction
+    keyid = extractKeyID(out.scriptPubKey);
+    if (!keyid)
         return false;
 
     amount = out.nValue;
@@ -340,5 +335,29 @@ bool MN_Elect(const COutPoint& outpoint, bool elect)
     else
     {
         return g_ElectedMasternodes.erase(outpoint) != 0;
+    }
+}
+
+CMasterNode* MN_NextPayee(const COutPoint& PrevPayee)
+{
+    if (PrevPayee.IsNull())
+    {
+        if (g_ElectedMasternodes.size() < g_MasternodesStartPayments)
+            return nullptr;
+
+        return getMasterNode(*g_ElectedMasternodes.begin());
+    }
+    else
+    {
+        if (g_ElectedMasternodes.size() < g_MasternodesStopPayments)
+            return nullptr;
+
+        auto iter = g_ElectedMasternodes.upper_bound(PrevPayee);
+
+        // Rewind
+        if (iter == g_ElectedMasternodes.end())
+            iter = g_ElectedMasternodes.begin();
+
+        return getMasterNode(*iter);
     }
 }

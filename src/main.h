@@ -230,8 +230,7 @@ unsigned int getSecondHardforkBlock(); // Spread mining
 unsigned int getThirdHardforkBlock(); // Masternodes
 /** Get block reward */
 int64 GetBlockValue(int nHeight, int64 nFees);
-
-
+CKeyID extractKeyID(const CScript& OutScript);
 
 
 
@@ -1799,6 +1798,8 @@ public:
 
     // Keep list of [de]elected nodes at this step so that we can undone it
     std::vector<COutPoint> velected[2];
+
+    COutPoint mn;
 
     CBlockIndex()
     {

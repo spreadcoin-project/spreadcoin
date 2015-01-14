@@ -7,6 +7,7 @@
 static const int64_t g_MinMasternodeAmount = 1000*COIN;
 static const int g_MaxMasternodeVotes = 10;
 static const int g_MasternodesElectionPeriod = 200;
+static const int g_MasternodeRewardPercentage = 30;
 
 // Wrapper for masternode messages
 class CMasterNodeBaseMsg
@@ -94,5 +95,6 @@ void MN_ProcessInstantTx(const CTransaction& tx);
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
 
 bool MN_Elect(const COutPoint& outpoint, bool elect);
+CMasterNode* MN_NextPayee(const COutPoint& PrevPayee);
 
 #endif // MASTERNODES_H
