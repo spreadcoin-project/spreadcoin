@@ -59,10 +59,9 @@ class CMasterNode
 
 public:
 
-    // Masternode indentifier
     COutPoint outpoint;
-
-    CKeyID keyid;
+    CKeyID    keyid;
+    uint64_t  amount;
 
     bool my = false;
 

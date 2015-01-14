@@ -93,7 +93,7 @@ void MasternodePage::updateMasternodes()
         int iRow = pTable->rowCount();
         pTable->setRowCount(iRow + 1);
         pTable->setItem(iRow, (int)C_ADDRESS, new QTableWidgetItem(address.ToString().c_str()));
-    //    pTable->setItem(iRow, (int)C_AMOUNT, new QTableWidgetItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, out.tx->vout[out.i].nValue)));
+        pTable->setItem(iRow, (int)C_AMOUNT, new QTableWidgetItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, mn.amount)));
         pTable->setItem(iRow, (int)C_OUTPUT, new QTableWidgetItem(QString("%1:%2").arg(mn.outpoint.hash.ToString().c_str()).arg(mn.outpoint.n)));
         pTable->setItem(iRow, (int)C_SCORE, new QTableWidgetItem(QString("%1").arg(mn.GetScore())));
 

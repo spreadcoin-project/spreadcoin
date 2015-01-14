@@ -133,7 +133,7 @@ double CMasterNode::GetScore() const
     return score;
 }
 
-static CKeyID MN_GetKeyID(const COutPoint& outpoint)
+static bool getKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t& amount)
 {
     CValidationState state;
     CTransaction tx;
@@ -145,30 +145,30 @@ static CKeyID MN_GetKeyID(const COutPoint& outpoint)
     tx.vin.push_back(in);
     tx.vout.push_back(testOut);
     if (!tx.AcceptableInputs(state, true))
-        return CKeyID();
+        return false;
 
     if(GetInputAge(outpoint) < g_MasternodeMinConfirmations)
-        return CKeyID();
+        return false;
 
     CTxOut out = getPrevOut(outpoint);
     if (out.IsNull())
-        return CKeyID();
+        return false;
 
     // Extract masternode's address from coinbase
     const CScript& OutScript = out.scriptPubKey;
     if (OutScript.size() != 22)
-        return CKeyID();
+        return false;
     CTxDestination Dest;
     if (!ExtractDestination(OutScript, Dest))
-        return CKeyID();
+        return false;
     CBitcoinAddress Address;
     if (!Address.Set(Dest) || !Address.IsValid())
-        return CKeyID();
-    CKeyID KeyID;
-    if (!Address.GetKeyID(KeyID))
-        return CKeyID();
+        return false;
+    if (!Address.GetKeyID(keyid))
+        return false;
 
-    return KeyID;
+    amount = out.nValue;
+    return true;
 }
 
 static CMasterNode* getMasterNode(const COutPoint& outpoint)
@@ -180,13 +180,15 @@ static CMasterNode* getMasterNode(const COutPoint& outpoint)
     }
     else
     {
-        uint160 keyid = MN_GetKeyID(outpoint);
-        if (!keyid)
+        CKeyID keyid;
+        uint64_t amount;
+        if (!getKeyIDAndAmount(outpoint, keyid, amount))
             return nullptr;
 
         CMasterNode& mn = g_MasterNodes[outpoint];
         mn.outpoint = outpoint;
         mn.keyid = keyid;
+        mn.amount = amount;
         return &mn;
     }
 }
