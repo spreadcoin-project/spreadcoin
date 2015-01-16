@@ -2024,6 +2024,10 @@ public:
             READWRITE(hashWholeBlock);
             READWRITE(MinerSignature);
         }
+        if (nHeight > (int)getThirdHardforkBlock())
+        {
+            READWRITE(mn);
+        }
     )
 
     uint256 GetBlockHash() const

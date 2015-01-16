@@ -1,5 +1,6 @@
 #include <boost/chrono.hpp>
 #include <boost/unordered_set.hpp>
+#include <boost/algorithm/clamp.hpp>
 
 #include "txdb.h"
 #include "masternodes.h"
@@ -17,6 +18,7 @@ static const unsigned int g_MasternodesStopPayments = 100;
 static const int g_AnnounceExistenceRestartPeriod = 20;
 static const int g_AnnounceExistencePeriod = 5;
 static const int g_MonitoringPeriod = 100;
+static const int g_MonitoringPeriodMin = 30;
 
 // If masternode doesn't respond to some message we assume that it has responded in this amount of time.
 static const double g_PenaltyTime = 500.0;
@@ -104,7 +106,6 @@ double CMasterNode::GetScore() const
     int nblocks = 0;
     for (uint32_t i = 0; i < vblocks.size(); i++)
     {
-        // FIXME: count our ignorance
         if (vblocks[i] <= g_InitialBlock)
             continue;
         nblocks++;
@@ -342,13 +343,16 @@ CMasterNode* MN_NextPayee(const COutPoint& PrevPayee)
 {
     if (PrevPayee.IsNull())
     {
+        // Not enough masternodes to start payments
         if (g_ElectedMasternodes.size() < g_MasternodesStartPayments)
             return nullptr;
 
+        // Start payments form the beginning
         return getMasterNode(*g_ElectedMasternodes.begin());
     }
     else
     {
+        // Stop payments if there are not enough masternodes
         if (g_ElectedMasternodes.size() < g_MasternodesStopPayments)
             return nullptr;
 
@@ -359,5 +363,144 @@ CMasterNode* MN_NextPayee(const COutPoint& PrevPayee)
             iter = g_ElectedMasternodes.begin();
 
         return getMasterNode(*iter);
+    }
+}
+
+template<typename T>
+inline void set_differences(const std::set<T>& A, const std::set<T>& B, std::vector<T>& resultA, std::vector<T>& resultB)
+{
+    auto firstA = A.begin();
+    auto lastA = A.end();
+    auto firstB = B.begin();
+    auto lastB = B.end();
+
+    while (true)
+    {
+        if (firstA == lastA)
+        {
+            resultB.insert(resultB.end(), firstB, lastB);
+            return;
+        }
+        if (firstB == lastB)
+        {
+            resultA.insert(resultA.end(), firstA, lastA);
+            return;
+        }
+
+        if (*firstA < *firstB)
+        {
+            resultA.push_back(*firstA++);
+        }
+        else if (*firstB < *firstA)
+        {
+            resultB.push_back(*firstB++);
+        }
+        else
+        {
+            ++firstA;
+            ++firstB;
+        }
+    }
+}
+
+void MN_CastVotes(std::vector<COutPoint> vvotes[])
+{
+    // Check if we are monitoring network long enough to start voting
+    if (nBestHeight < g_InitialBlock + g_MonitoringPeriodMin)
+    {
+        vvotes[0].clear();
+        vvotes[1].clear();
+        return;
+    }
+
+    // FIXME:
+    std::set<COutPoint> NewMasternodes;
+
+
+    // Find differences between elected masternodes and our opinion on what masternodes should be elected.
+    // These differences are our votes.
+    set_differences(g_ElectedMasternodes, NewMasternodes, vvotes[0], vvotes[1]);
+
+    // Check if there too many votes
+    int totalVotes = vvotes[0].size() + vvotes[1].size();
+    if (totalVotes > g_MaxMasternodeVotes)
+    {
+        int numVotes0;
+
+        if (vvotes[0].empty())
+            numVotes0 = 0;
+        else if (vvotes[1].empty())
+            numVotes0 = g_MaxMasternodeVotes;
+        else
+        {
+            numVotes0 = (int)round(double(vvotes[0].size())*g_MaxMasternodeVotes/totalVotes);
+            numVotes0 = boost::algorithm::clamp(numVotes0, 1, g_MaxMasternodeVotes - 1);
+        }
+
+        vvotes[0].resize(numVotes0);
+        vvotes[1].resize(g_MaxMasternodeVotes - numVotes0);
+    }
+}
+
+CKeyID MN_OnConnectBlock(CBlockIndex* pindex)
+{
+    if (pindex->nHeight <= (int)getThirdHardforkBlock())
+        return CKeyID(0);
+
+    boost::unordered_map<COutPoint, int> vvotes[2];
+
+    CBlockIndex* pCurBlock = pindex->pprev;
+    for (int i = 0; i < g_MasternodesElectionPeriod && pCurBlock; i++)
+    {
+        for (int j = 0; j < 2; j++)
+        {
+            for (COutPoint vote : pCurBlock->vvotes[j])
+            {
+                auto pair = vvotes[j].insert(std::make_pair(vote, 1));
+                if (!pair.second)
+                {
+                    pair.first->second++;
+                }
+            }
+        }
+        pCurBlock = pCurBlock->pprev;
+    }
+
+    for (int j = 0; j < 2; j++)
+    {
+        for (const std::pair<COutPoint, int>& pair : vvotes[j])
+        {
+            if (pair.second > g_MasternodesElectionPeriod/2 && MN_Elect(pair.first, j))
+                pindex->velected[j].push_back(pair.first);
+        }
+    }
+
+    CMasterNode *pPayee = MN_NextPayee(pindex->pprev->mn);
+    if (!pPayee)
+        return CKeyID(0);
+
+    pindex->mn = pPayee->outpoint;
+    return pPayee->keyid;
+}
+
+void MN_OnDisconnectBlock(CBlockIndex* pindex)
+{
+    // Undo masternode election
+    for (int j = 0; j < 2; j++)
+    {
+        for (const COutPoint& outpoint : pindex->velected[j])
+        {
+            assert(MN_Elect(outpoint, !j));
+        }
+    }
+}
+
+void MN_LoadElections()
+{
+    for (CBlockIndex* pindex = FindBlockByHeight(getThirdHardforkBlock() + 1);
+         pindex;
+         pindex = pindex->pnext)
+    {
+        MN_OnConnectBlock(pindex);
     }
 }

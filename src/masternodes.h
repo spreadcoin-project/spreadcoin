@@ -9,7 +9,7 @@ static const int g_MaxMasternodeVotes = 10;
 static const int g_MasternodesElectionPeriod = 200;
 static const int g_MasternodeRewardPercentage = 30;
 
-// Wrapper for masternode messages
+// Base for masternode messages
 class CMasterNodeBaseMsg
 {
 public:
@@ -83,6 +83,7 @@ public:
 
 // All these variables and functions require locking cs_main.
 
+// All known masternodes, this may include outdated and stopped masternodes as well as not yet elected.
 extern boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
 
 // Control our masternodes
@@ -90,11 +91,26 @@ bool MN_SetMy(const COutPoint& outpoint, bool my);
 bool MN_Start(const COutPoint& outpoint, const CKey& key);
 bool MN_Stop(const COutPoint& outpoint);
 
+// Process network events
 void MN_ProcessBlocks();
 void MN_ProcessInstantTx(const CTransaction& tx);
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
 
-bool MN_Elect(const COutPoint& outpoint, bool elect);
+// Functions necessary for mining
 CMasterNode* MN_NextPayee(const COutPoint& PrevPayee);
+void MN_CastVotes(std::vector<COutPoint> vvotes[2]);
+
+// Executed on connecting/disconnectig blocks
+// These functions add or remove nodes to the set of elected masternodes
+CKeyID MN_OnConnectBlock(CBlockIndex* pindex); // returns expected payee
+void MN_OnDisconnectBlock(CBlockIndex* pindex);
+
+// Initialize elected masternodes after loading blockchain
+void MN_LoadElections();
+
+inline int64_t MN_GetReward(int64_t BlockValue)
+{
+    return BlockValue*g_MasternodeRewardPercentage/100;
+}
 
 #endif // MASTERNODES_H

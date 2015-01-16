@@ -1310,6 +1310,9 @@ bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock
 static CBlockIndex* pblockindexFBBHLast;
 CBlockIndex* FindBlockByHeight(int nHeight)
 {
+    if (nHeight < 0 || nHeight > nBestHeight)
+        return NULL;
+
     CBlockIndex *pblockindex;
     if (nHeight < nBestHeight / 2)
         pblockindex = pindexGenesisBlock;
@@ -1636,7 +1639,7 @@ bool CBlock::CheckProofOfWorkLite() const
         if (CoinBase.vout.size() == 2)
         {
             int64_t totalValue = CoinBase.vout[0].nValue + CoinBase.vout[1].nValue;
-            if (CoinBase.vout[1].nValue != totalValue*g_MasternodeRewardPercentage/100)
+            if (CoinBase.vout[1].nValue != MN_GetReward(totalValue))
                 return error("CheckProofOfWorkLite() : coinbase masternode reward is incorrect");
         }
     }
@@ -2054,14 +2057,7 @@ bool CBlock::DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoin
         }
     }
 
-    // Undo masternode election
-    for (int j = 0; j < 2; j++)
-    {
-        for (const COutPoint& outpoint : pindex->velected[j])
-        {
-            assert(MN_Elect(outpoint, !j));
-        }
-    }
+    MN_OnDisconnectBlock(pindex);
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev);
@@ -2242,51 +2238,18 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
             return state.Abort(_("Failed to write block index"));
     }
 
-    if (nHeight > getThirdHardforkBlock())
+    CKeyID KeyID = MN_OnConnectBlock(pindex);
+    if (!KeyID)
     {
-        boost::unordered_map<COutPoint, int> vvotes[2];
-
-        CBlockIndex* pCurBlock = pindex->pprev;
-        for (int i = 0; i < g_MasternodesElectionPeriod && pCurBlock; i++)
-        {
-            for (int j = 0; j < 2; j++)
-            {
-                for (COutPoint vote : pCurBlock->vvotes[j])
-                {
-                    auto pair = vvotes[j].insert(std::make_pair(vote, 1));
-                    if (!pair.second)
-                    {
-                        pair.first->second++;
-                    }
-                }
-            }
-            pCurBlock = pCurBlock->pprev;
-        }
-
-        for (int j = 0; j < 2; j++)
-        {
-            for (const std::pair<COutPoint, int>& pair : vvotes[j])
-            {
-                if (pair.second > g_MasternodesElectionPeriod/2 && MN_Elect(pair.first, j))
-                    pindex->velected[j].push_back(pair.first);
-            }
-        }
-
-        CMasterNode* pCurrentMN = MN_NextPayee(pindex->pprev->mn);
-        if (!pCurrentMN)
-        {
-            if (vtx[0].vout.size() != 1)
-                return state.DoS(100, error("ConnectBlock() : unnecessary masternode payment"));
-        }
-        else
-        {
-            if (vtx[0].vout.size() != 2)
-                return state.DoS(100, error("ConnectBlock() : no masternode payment"));
-            if (pCurrentMN->keyid != extractKeyID(vtx[0].vout[1].scriptPubKey))
-                return state.DoS(100, error("ConnectBlock() : wrong masternode payment"));
-
-            pindex->mn = pCurrentMN->outpoint;
-        }
+        if (vtx[0].vout.size() != 1)
+            return state.DoS(100, error("ConnectBlock() : unnecessary masternode payment"));
+    }
+    else
+    {
+        if (vtx[0].vout.size() != 2)
+            return state.DoS(100, error("ConnectBlock() : no masternode payment"));
+        if (extractKeyID(vtx[0].vout[1].scriptPubKey) != KeyID)
+            return state.DoS(100, error("ConnectBlock() : wrong masternode payment"));
     }
 
     if (fTxIndex)
@@ -3162,6 +3125,7 @@ bool static LoadBlockIndexDB()
          pindexPrev->pnext = pindex;
          pindex = pindexPrev;
     }
+    MN_LoadElections();
     printf("LoadBlockIndexDB(): hashBestChain=%s  height=%d date=%s\n",
         hashBestChain.ToString().c_str(), nBestHeight,
         DateTimeStrFormat("%Y-%m-%d %H:%M:%S", pindexBest->GetBlockTime()).c_str());
@@ -4931,92 +4895,25 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
     printf("%d\n", scriptPubKeyIn[0]);
 
-
-#if ENABLE_DARKSEND_FEATURES
-    // start masternode payments
-
-
-    bool bMasterNodePayment = false;
-
-    // fees to foundation
-    if ( fTestNet ){
-        if (GetTimeMicros() > START_MASTERNODE_PAYMENTS_TESTNET ){
-            bMasterNodePayment = true;
-        }
-    }else{
-        if (GetTimeMicros() > START_MASTERNODE_PAYMENTS){
-            bMasterNodePayment = true;
-        }
-    }
-#endif // ENABLE_DARKSEND_FEATURES
-    
     int64 nFees = 0;
     {
         LOCK2(cs_main, mempool.cs);
         CCoinsViewCache view(*pcoinsTip, true);
         CBlockIndex* pindexPrev = pindexBest;
-    
-#if ENABLE_DARKSEND_FEATURES
-        if(bMasterNodePayment) {
-            if(!pblock->MasterNodePaymentsEnforcing()){
-                int winningNode = darkSendPool.GetCurrentMasterNode(1);
-                if(winningNode >= 0){
-                    pblock->payee.SetDestination(darkSendMasterNodes[winningNode].pubkey.GetID());
-                    
-                    payments++;
-                    txNew.vout.resize(payments);
 
-                    //txNew.vout[0].scriptPubKey = scriptPubKeyIn;
-                    txNew.vout[payments-1].scriptPubKey.SetDestination(darkSendMasterNodes[winningNode].pubkey.GetID());
-                    txNew.vout[payments-1].nValue = 0;
-
-                    printf("Masternode payment to %s\n", txNew.vout[payments-1].scriptPubKey.ToString().c_str());
-                }
-            } else {
-                CBlock blockLast;
-                if(blockLast.ReadFromDisk(pindexPrev)){
-                    BOOST_FOREACH(CMasterNodeVote& mv1, blockLast.vmn){
-                        // vote if you agree with it, if you're the last vote you must vote yes to avoid the greedy voter exploit
-                        // i.e: You only vote yes when you're not the one that is going to pay
-                        if(mv1.GetVotes() >= MASTERNODE_PAYMENTS_MIN_VOTES-1){
-                            mv1.Vote();
-                        } else {
-                            BOOST_FOREACH(CMasterNodeVote& mv2, darkSendMasterNodeVotes) {
-                                if((mv1.blockHeight == mv2.blockHeight && mv1.GetPubKey() == mv2.GetPubKey())) {
-                                    mv1.Vote();
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (((pindexPrev->nHeight+1) - mv1.GetHeight()) >= MASTERNODE_PAYMENTS_EXPIRATION) {
-                            // do nothing
-                        } else if( (mv1.GetVotes() >= MASTERNODE_PAYMENTS_MIN_VOTES && pblock->MasterNodePaymentsEnforcing()) && payments <= MASTERNODE_PAYMENTS_MAX) {
-                            pblock->payee = mv1.GetPubKey();
-                            
-                            payments++;
-                            txNew.vout.resize(payments);
-
-                            //txNew.vout[0].scriptPubKey = scriptPubKeyIn;
-                            txNew.vout[payments-1].scriptPubKey = mv1.GetPubKey();
-                            txNew.vout[payments-1].nValue = 0;
-
-                            printf("Masternode payment to %s\n", txNew.vout[payments-1].scriptPubKey.ToString().c_str());
-                        } else if (((pindexPrev->nHeight+1) - mv1.GetHeight()) < MASTERNODE_PAYMENTS_EXPIRATION) {
-                            pblock->vmn.push_back(mv1);
-                        }
-                    } 
-                }
-
-                int winningNode = darkSendPool.GetCurrentMasterNode(1);
-                if(winningNode >= 0){
-                    CMasterNodeVote mv;
-                    mv.Set(darkSendMasterNodes[winningNode].pubkey, pindexPrev->nHeight + 1);
-                    pblock->vmn.push_back(mv);
-                }
+        if (pindexPrev->nHeight + 1 > (int)getThirdHardforkBlock())
+        {
+            CMasterNode* pNextPayee = MN_NextPayee(pindexPrev->mn);
+            if (pNextPayee)
+            {
+                txNew.vout.resize(2);
+                txNew.vout[1].scriptPubKey = scriptPubKeyIn;
+                CScript script;
+                script.SetDestination(CTxDestination(pNextPayee->keyid));
             }
+
+            MN_CastVotes(pblock->vvotes);
         }
-#endif // ENABLE_DARKSEND_FEATURES
 
         // Add our coinbase tx as first transaction
         pblock->vtx.push_back(txNew);
@@ -5230,8 +5127,16 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                 pblock->vtx[0].vout[i].nValue = blockValueFifth;
                 blockValue -= blockValueFifth;
             }
-            pblock->vtx[0].vout[0].nValue = blockValue;
-
+            if (pblock->vtx[0].vout.size() == 1)
+            {
+                pblock->vtx[0].vout[0].nValue = blockValue;
+            }
+            else
+            {
+                int64_t MasternodeReward = MN_GetReward(blockValue);
+                pblock->vtx[0].vout[0].nValue = blockValue - MasternodeReward;
+                pblock->vtx[0].vout[1].nValue = MasternodeReward;
+            }
             pblocktemplate->vTxFees[0] = -nFees;
 
             // Fill in header
