@@ -228,6 +228,23 @@ std::string BlockToString(CBlockIndex* pBlock)
     Content += " style=\"text-decoration: none\">&nbsp;►</a></h1>";
     Content += BlockContent;
     Content += "</br>";
+    if (block.nHeight > getThirdHardforkBlock())
+    {
+        std::vector<std::string> votes[2];
+        for (int i = 0; i < 2; i++)
+        {
+            for (unsigned int j = 0; j < block.vvotes[i].size(); j++)
+            {
+                votes[i].push_back(block.vvotes[i][j].hash.ToString() + ':' + itostr(block.vvotes[i][j].n));
+            }
+        }
+        Content += "<h2>" + _("Votes +") + "</h2>";
+        Content += makeHTMLTable(&votes[1][0], votes[1].size(), 1);
+        Content += "</br>";
+        Content += "<h2>" + _("Votes -") + "</h2>";
+        Content += makeHTMLTable(&votes[0][0], votes[0].size(), 1);
+        Content += "</br>";
+    }
     Content += "<h2>" + _("Transactions") + "</h2>";
     Content += TxContent;
 

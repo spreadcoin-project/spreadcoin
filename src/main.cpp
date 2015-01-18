@@ -107,7 +107,7 @@ unsigned int getSecondHardforkBlock()
 
 unsigned int getThirdHardforkBlock()
 {
-    return fTestNet? 2200 : 99999999;
+    return fTestNet? 2138 : 99999999;
 }
 
 //////////////////////////////////////////////////////////////////////////////

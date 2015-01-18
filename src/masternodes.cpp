@@ -20,6 +20,8 @@ static const int g_AnnounceExistencePeriod = 5;
 static const int g_MonitoringPeriod = 100;
 static const int g_MonitoringPeriodMin = 30;
 
+static const int g_MaxMasternodes = 1500;
+
 // If masternode doesn't respond to some message we assume that it has responded in this amount of time.
 static const double g_PenaltyTime = 500.0;
 
@@ -94,14 +96,17 @@ void CMasterNode::Cleanup()
     });
 }
 
-double CMasterNode::GetScore() const
+void CMasterNode::UpdateScore() const
 {
     if (misbehaving)
-        return 99999999999.0;
+    {
+        score = 99999999999.0;
+        return;
+    }
 
     std::vector<int> vblocks = GetExistenceBlocks();
 
-    double score = 0.0;
+    score = 0.0;
 
     int nblocks = 0;
     for (uint32_t i = 0; i < vblocks.size(); i++)
@@ -133,7 +138,15 @@ double CMasterNode::GetScore() const
 
     if (nblocks != 0)
         score /= nblocks;
+}
 
+double CMasterNode::GetScore() const
+{
+    if (lastScoreUpdate < nBestHeight - 5)
+    {
+        UpdateScore();
+        lastScoreUpdate = nBestHeight;
+    }
     return score;
 }
 
@@ -329,6 +342,8 @@ bool MN_Elect(const COutPoint& outpoint, bool elect)
 {
     if (elect)
     {
+        if (g_ElectedMasternodes.size() == g_MaxMasternodes)
+            return false;
         if (!getMasterNode(outpoint))
             return false;
         return g_ElectedMasternodes.insert(outpoint).second;
@@ -366,8 +381,8 @@ CMasterNode* MN_NextPayee(const COutPoint& PrevPayee)
     }
 }
 
-template<typename T>
-inline void set_differences(const std::set<T>& A, const std::set<T>& B, std::vector<T>& resultA, std::vector<T>& resultB)
+template<typename T, typename TComp>
+inline void set_differences(const std::vector<T>& A, const std::vector<T>& B, std::vector<T>& resultA, std::vector<T>& resultB, TComp comp)
 {
     auto firstA = A.begin();
     auto lastA = A.end();
@@ -387,11 +402,11 @@ inline void set_differences(const std::set<T>& A, const std::set<T>& B, std::vec
             return;
         }
 
-        if (*firstA < *firstB)
+        if (comp(*firstA, *firstB))
         {
             resultA.push_back(*firstA++);
         }
-        else if (*firstB < *firstA)
+        else if (comp(*firstB, *firstA))
         {
             resultB.push_back(*firstB++);
         }
@@ -403,42 +418,75 @@ inline void set_differences(const std::set<T>& A, const std::set<T>& B, std::vec
     }
 }
 
+static bool compareMasternodesByScore(const CMasterNode* pLeft, const CMasterNode* pRight)
+{
+    double a = pLeft ->GetScore() - 0.001*pLeft ->amount*1.0/COIN;
+    double b = pRight->GetScore() - 0.001*pRight->amount*1.0/COIN;
+    return a < b;
+}
+
 void MN_CastVotes(std::vector<COutPoint> vvotes[])
 {
+    vvotes[0].clear();
+    vvotes[1].clear();
+
     // Check if we are monitoring network long enough to start voting
     if (nBestHeight < g_InitialBlock + g_MonitoringPeriodMin)
-    {
-        vvotes[0].clear();
-        vvotes[1].clear();
         return;
+
+    std::vector<const CMasterNode*> velected;
+    std::vector<const CMasterNode*> vknown;
+
+    for (const auto& pair : g_MasterNodes)
+    {
+        vknown.push_back(&pair.second);
     }
 
-    // FIXME:
-    std::set<COutPoint> NewMasternodes;
+    for (const COutPoint& outpoint : g_ElectedMasternodes)
+    {
+        velected.push_back(getMasterNode(outpoint));
+    }
 
+    std::sort(vknown.begin(), vknown.end(), compareMasternodesByScore);
+    std::sort(velected.begin(), velected.end(), compareMasternodesByScore);
+
+    if (vknown.size() > g_MaxMasternodes)
+        vknown.resize(g_MaxMasternodes);
+
+    std::vector<const CMasterNode*> vpvotes[2];
 
     // Find differences between elected masternodes and our opinion on what masternodes should be elected.
     // These differences are our votes.
-    set_differences(g_ElectedMasternodes, NewMasternodes, vvotes[0], vvotes[1]);
+    set_differences(velected, vknown, vpvotes[0], vpvotes[1], compareMasternodesByScore);
+
+    std::reverse(vpvotes[0].begin(), vpvotes[0].end());
 
     // Check if there too many votes
-    int totalVotes = vvotes[0].size() + vvotes[1].size();
+    int totalVotes = vpvotes[0].size() + vpvotes[1].size();
     if (totalVotes > g_MaxMasternodeVotes)
     {
         int numVotes0;
 
-        if (vvotes[0].empty())
+        if (vpvotes[0].empty())
             numVotes0 = 0;
-        else if (vvotes[1].empty())
+        else if (vpvotes[1].empty())
             numVotes0 = g_MaxMasternodeVotes;
         else
         {
-            numVotes0 = (int)round(double(vvotes[0].size())*g_MaxMasternodeVotes/totalVotes);
+            numVotes0 = (int)round(double(vpvotes[0].size())*g_MaxMasternodeVotes/totalVotes);
             numVotes0 = boost::algorithm::clamp(numVotes0, 1, g_MaxMasternodeVotes - 1);
         }
 
-        vvotes[0].resize(numVotes0);
-        vvotes[1].resize(g_MaxMasternodeVotes - numVotes0);
+        vpvotes[0].resize(numVotes0);
+        vpvotes[1].resize(g_MaxMasternodeVotes - numVotes0);
+    }
+
+    for (int i = 0; i < 2; i++)
+    {
+        for (const CMasterNode* pmn : vpvotes[i])
+        {
+            vvotes[i].push_back(pmn->outpoint);
+        }
     }
 }
 

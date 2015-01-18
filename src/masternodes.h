@@ -58,6 +58,11 @@ class CMasterNode
 
     bool misbehaving = false;
 
+    mutable double score;
+    mutable int lastScoreUpdate = 0;
+
+    void UpdateScore() const;
+
 public:
 
     COutPoint outpoint;

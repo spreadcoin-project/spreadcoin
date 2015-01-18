@@ -2026,6 +2026,8 @@ public:
         }
         if (nHeight > (int)getThirdHardforkBlock())
         {
+            READWRITE(vvotes[0]);
+            READWRITE(vvotes[1]);
             READWRITE(mn);
         }
     )
