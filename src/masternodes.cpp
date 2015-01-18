@@ -490,13 +490,8 @@ void MN_CastVotes(std::vector<COutPoint> vvotes[])
     }
 }
 
-CKeyID MN_OnConnectBlock(CBlockIndex* pindex)
+void MN_GetVotes(CBlockIndex* pindex, boost::unordered_map<COutPoint, int> vvotes[2])
 {
-    if (pindex->nHeight <= (int)getThirdHardforkBlock())
-        return CKeyID(0);
-
-    boost::unordered_map<COutPoint, int> vvotes[2];
-
     CBlockIndex* pCurBlock = pindex->pprev;
     for (int i = 0; i < g_MasternodesElectionPeriod && pCurBlock; i++)
     {
@@ -513,6 +508,15 @@ CKeyID MN_OnConnectBlock(CBlockIndex* pindex)
         }
         pCurBlock = pCurBlock->pprev;
     }
+}
+
+CKeyID MN_OnConnectBlock(CBlockIndex* pindex)
+{
+    if (pindex->nHeight <= (int)getThirdHardforkBlock())
+        return CKeyID(0);
+
+    boost::unordered_map<COutPoint, int> vvotes[2];
+    MN_GetVotes(pindex, vvotes);
 
     for (int j = 0; j < 2; j++)
     {
@@ -551,4 +555,14 @@ void MN_LoadElections()
     {
         MN_OnConnectBlock(pindex);
     }
+}
+
+bool MN_IsElected(const COutPoint& outpoint)
+{
+    return g_ElectedMasternodes.count(outpoint) != 0;
+}
+
+int MN_GetVotes(const COutPoint& outpoint)
+{
+
 }

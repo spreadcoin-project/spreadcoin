@@ -118,4 +118,8 @@ inline int64_t MN_GetReward(int64_t BlockValue)
     return BlockValue*g_MasternodeRewardPercentage/100;
 }
 
+// Info
+bool MN_IsElected(const COutPoint& outpoint);
+void MN_GetVotes(CBlockIndex* pindex, boost::unordered_map<COutPoint, int> vvotes[2]);
+
 #endif // MASTERNODES_H

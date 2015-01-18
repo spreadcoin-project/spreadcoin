@@ -12,7 +12,9 @@ enum EColumn
 {
     C_ADDRESS,
     C_AMOUNT,
+    C_ELECTED,
     C_SCORE,
+    C_VOTES,
     C_CONTROL,
     C_OUTPUT,
 
@@ -41,6 +43,8 @@ MasternodePage::MasternodePage(QWidget *parent) :
 
     ui->tableWidget->setHorizontalHeaderItem((int)C_ADDRESS, new QTableWidgetItem(tr("Address")));
     ui->tableWidget->setHorizontalHeaderItem((int)C_AMOUNT,  new QTableWidgetItem(tr("Amount")));
+    ui->tableWidget->setHorizontalHeaderItem((int)C_ELECTED, new QTableWidgetItem(tr("Elected")));
+    ui->tableWidget->setHorizontalHeaderItem((int)C_VOTES,   new QTableWidgetItem(tr("Votes")));
     ui->tableWidget->setHorizontalHeaderItem((int)C_OUTPUT,  new QTableWidgetItem(tr("Output")));
     ui->tableWidget->setHorizontalHeaderItem((int)C_CONTROL, new QTableWidgetItem(tr("Control")));
     ui->tableWidget->setHorizontalHeaderItem((int)C_SCORE,   new QTableWidgetItem(tr("Score")));
@@ -80,12 +84,22 @@ void MasternodePage::updateMasternodes()
         }
     }
 
+    boost::unordered_map<COutPoint, int> vvotes[2];
+    MN_GetVotes(pindexBest, vvotes);
+
     QTableWidget* pTable = ui->tableWidget;
     pTable->setRowCount(0);
 
     for (const std::pair<COutPoint, CMasterNode>& pair : g_MasterNodes)
     {
         const CMasterNode& mn = pair.second;
+        bool elected = MN_IsElected(mn.outpoint);
+        int votes = 0;
+        auto iter = vvotes[!elected].find(mn.outpoint);
+        if (iter != vvotes[!elected].end())
+        {
+            votes = iter->second;
+        }
 
         CBitcoinAddress address;
         address.Set(mn.keyid);
@@ -96,6 +110,8 @@ void MasternodePage::updateMasternodes()
         pTable->setItem(iRow, (int)C_AMOUNT, new QTableWidgetItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, mn.amount)));
         pTable->setItem(iRow, (int)C_OUTPUT, new QTableWidgetItem(QString("%1:%2").arg(mn.outpoint.hash.ToString().c_str()).arg(mn.outpoint.n)));
         pTable->setItem(iRow, (int)C_SCORE, new QTableWidgetItem(QString("%1").arg(mn.GetScore())));
+        pTable->setItem(iRow, (int)C_ELECTED, new QTableWidgetItem(QString("%1").arg(elected? tr("yes") : "")));
+        pTable->setItem(iRow, (int)C_VOTES, new QTableWidgetItem(QString("%1%").arg(votes*1.0/g_MasternodesElectionPeriod)));
 
         if (mn.my)
         {
