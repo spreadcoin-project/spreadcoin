@@ -93,7 +93,7 @@ void MasternodePage::updateMasternodes()
     for (const std::pair<COutPoint, CMasterNode>& pair : g_MasterNodes)
     {
         const CMasterNode& mn = pair.second;
-        bool elected = MN_IsElected(mn.outpoint);
+        bool elected = g_ElectedMasternodes.IsElected(mn.outpoint);
         int votes = 0;
         auto iter = vvotes[!elected].find(mn.outpoint);
         if (iter != vvotes[!elected].end())
@@ -111,7 +111,7 @@ void MasternodePage::updateMasternodes()
         pTable->setItem(iRow, (int)C_OUTPUT, new QTableWidgetItem(QString("%1:%2").arg(mn.outpoint.hash.ToString().c_str()).arg(mn.outpoint.n)));
         pTable->setItem(iRow, (int)C_SCORE, new QTableWidgetItem(QString("%1").arg(mn.GetScore())));
         pTable->setItem(iRow, (int)C_ELECTED, new QTableWidgetItem(QString("%1").arg(elected? tr("yes") : "")));
-        pTable->setItem(iRow, (int)C_VOTES, new QTableWidgetItem(QString("%1%").arg(votes*1.0/g_MasternodesElectionPeriod)));
+        pTable->setItem(iRow, (int)C_VOTES, new QTableWidgetItem(QString("%1%").arg(votes*100.0/g_MasternodesElectionPeriod)));
 
         if (mn.my)
         {

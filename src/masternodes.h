@@ -6,7 +6,7 @@
 
 static const int64_t g_MinMasternodeAmount = 1000*COIN;
 static const int g_MaxMasternodeVotes = 10;
-static const int g_MasternodesElectionPeriod = 200;
+static const int g_MasternodesElectionPeriod = 50;
 static const int g_MasternodeRewardPercentage = 30;
 
 // Base for masternode messages
@@ -86,10 +86,29 @@ public:
     int AddExistenceMsg(const CMasterNodeExistenceMsg& msg);
 };
 
+class CElectedMasternodes
+{
+    bool elect(const COutPoint& outpoint, bool elect);
+
+public:
+    std::set<COutPoint> masternodes;
+
+    // Executed on connecting/disconnectig blocks
+    // These functions add or remove nodes to the set of elected masternodes
+    CKeyID OnConnectBlock(CBlockIndex* pindex); // returns expected payee
+    void OnDisconnectBlock(CBlockIndex* pindex);
+
+    CMasterNode* NextPayee(const COutPoint& PrevPayee);
+
+    bool IsElected(const COutPoint& outpoint);
+};
+
 // All these variables and functions require locking cs_main.
 
 // All known masternodes, this may include outdated and stopped masternodes as well as not yet elected.
 extern boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
+
+extern CElectedMasternodes g_ElectedMasternodes;
 
 // Control our masternodes
 bool MN_SetMy(const COutPoint& outpoint, bool my);
@@ -102,13 +121,7 @@ void MN_ProcessInstantTx(const CTransaction& tx);
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
 
 // Functions necessary for mining
-CMasterNode* MN_NextPayee(const COutPoint& PrevPayee);
 void MN_CastVotes(std::vector<COutPoint> vvotes[2]);
-
-// Executed on connecting/disconnectig blocks
-// These functions add or remove nodes to the set of elected masternodes
-CKeyID MN_OnConnectBlock(CBlockIndex* pindex); // returns expected payee
-void MN_OnDisconnectBlock(CBlockIndex* pindex);
 
 // Initialize elected masternodes after loading blockchain
 void MN_LoadElections();
@@ -119,7 +132,6 @@ inline int64_t MN_GetReward(int64_t BlockValue)
 }
 
 // Info
-bool MN_IsElected(const COutPoint& outpoint);
 void MN_GetVotes(CBlockIndex* pindex, boost::unordered_map<COutPoint, int> vvotes[2]);
 
 #endif // MASTERNODES_H

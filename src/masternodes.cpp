@@ -30,7 +30,7 @@ static int32_t g_InitialBlock = 0;
 
 boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
 static boost::unordered_set<COutPoint> g_OurMasterNodes;
-static std::set<COutPoint> g_ElectedMasternodes;
+CElectedMasternodes g_ElectedMasternodes;
 
 std::vector<int> CMasterNode::GetExistenceBlocks() const
 {
@@ -338,44 +338,28 @@ bool MN_SetMy(const COutPoint& outpoint, bool my)
     return true;
 }
 
-bool MN_Elect(const COutPoint& outpoint, bool elect)
-{
-    if (elect)
-    {
-        if (g_ElectedMasternodes.size() == g_MaxMasternodes)
-            return false;
-        if (!getMasterNode(outpoint))
-            return false;
-        return g_ElectedMasternodes.insert(outpoint).second;
-    }
-    else
-    {
-        return g_ElectedMasternodes.erase(outpoint) != 0;
-    }
-}
-
-CMasterNode* MN_NextPayee(const COutPoint& PrevPayee)
+CMasterNode* CElectedMasternodes::NextPayee(const COutPoint& PrevPayee)
 {
     if (PrevPayee.IsNull())
     {
         // Not enough masternodes to start payments
-        if (g_ElectedMasternodes.size() < g_MasternodesStartPayments)
+        if (masternodes.size() < g_MasternodesStartPayments)
             return nullptr;
 
         // Start payments form the beginning
-        return getMasterNode(*g_ElectedMasternodes.begin());
+        return getMasterNode(*masternodes.begin());
     }
     else
     {
         // Stop payments if there are not enough masternodes
-        if (g_ElectedMasternodes.size() < g_MasternodesStopPayments)
+        if (masternodes.size() < g_MasternodesStopPayments)
             return nullptr;
 
-        auto iter = g_ElectedMasternodes.upper_bound(PrevPayee);
+        auto iter = masternodes.upper_bound(PrevPayee);
 
         // Rewind
-        if (iter == g_ElectedMasternodes.end())
-            iter = g_ElectedMasternodes.begin();
+        if (iter == masternodes.end())
+            iter = masternodes.begin();
 
         return getMasterNode(*iter);
     }
@@ -442,7 +426,7 @@ void MN_CastVotes(std::vector<COutPoint> vvotes[])
         vknown.push_back(&pair.second);
     }
 
-    for (const COutPoint& outpoint : g_ElectedMasternodes)
+    for (const COutPoint& outpoint : g_ElectedMasternodes.masternodes)
     {
         velected.push_back(getMasterNode(outpoint));
     }
@@ -508,9 +492,34 @@ void MN_GetVotes(CBlockIndex* pindex, boost::unordered_map<COutPoint, int> vvote
         }
         pCurBlock = pCurBlock->pprev;
     }
+
+    for (int i = 0; i < 2; i++)
+    {
+        for (const auto& pair : vvotes[i])
+        {
+            // Add to known
+            getMasterNode(pair.first);
+        }
+    }
 }
 
-CKeyID MN_OnConnectBlock(CBlockIndex* pindex)
+bool CElectedMasternodes::elect(const COutPoint& outpoint, bool elect)
+{
+    if (elect)
+    {
+        if (masternodes.size() == g_MaxMasternodes)
+            return false;
+        if (!getMasterNode(outpoint))
+            return false;
+        return masternodes.insert(outpoint).second;
+    }
+    else
+    {
+        return masternodes.erase(outpoint) != 0;
+    }
+}
+
+CKeyID CElectedMasternodes::OnConnectBlock(CBlockIndex* pindex)
 {
     if (pindex->nHeight <= (int)getThirdHardforkBlock())
         return CKeyID(0);
@@ -522,12 +531,12 @@ CKeyID MN_OnConnectBlock(CBlockIndex* pindex)
     {
         for (const std::pair<COutPoint, int>& pair : vvotes[j])
         {
-            if (pair.second > g_MasternodesElectionPeriod/2 && MN_Elect(pair.first, j))
+            if (pair.second > g_MasternodesElectionPeriod/2 && elect(pair.first, j))
                 pindex->velected[j].push_back(pair.first);
         }
     }
 
-    CMasterNode *pPayee = MN_NextPayee(pindex->pprev->mn);
+    CMasterNode *pPayee = NextPayee(pindex->pprev->mn);
     if (!pPayee)
         return CKeyID(0);
 
@@ -535,14 +544,14 @@ CKeyID MN_OnConnectBlock(CBlockIndex* pindex)
     return pPayee->keyid;
 }
 
-void MN_OnDisconnectBlock(CBlockIndex* pindex)
+void CElectedMasternodes::OnDisconnectBlock(CBlockIndex* pindex)
 {
     // Undo masternode election
     for (int j = 0; j < 2; j++)
     {
         for (const COutPoint& outpoint : pindex->velected[j])
         {
-            assert(MN_Elect(outpoint, !j));
+            assert(elect(outpoint, !j));
         }
     }
 }
@@ -553,16 +562,11 @@ void MN_LoadElections()
          pindex;
          pindex = pindex->pnext)
     {
-        MN_OnConnectBlock(pindex);
+        g_ElectedMasternodes.OnConnectBlock(pindex);
     }
 }
 
-bool MN_IsElected(const COutPoint& outpoint)
+bool CElectedMasternodes::IsElected(const COutPoint& outpoint)
 {
-    return g_ElectedMasternodes.count(outpoint) != 0;
-}
-
-int MN_GetVotes(const COutPoint& outpoint)
-{
-
+    return masternodes.count(outpoint) != 0;
 }

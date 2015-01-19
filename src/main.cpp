@@ -1981,7 +1981,7 @@ bool CTransaction::CheckInputs(CValidationState &state, CCoinsViewCache &inputs,
 
 
 
-bool CBlock::DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoinsViewCache &view, bool *pfClean)
+bool CBlock::DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoinsViewCache &view, CElectedMasternodes &elected, bool *pfClean)
 {
     assert(pindex == view.GetBestBlock());
 
@@ -2057,7 +2057,7 @@ bool CBlock::DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoin
         }
     }
 
-    MN_OnDisconnectBlock(pindex);
+    elected.OnDisconnectBlock(pindex);
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev);
@@ -2102,7 +2102,7 @@ void ThreadScriptCheck() {
     scriptcheckqueue.Thread();
 }
 
-bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsViewCache &view, bool fJustCheck)
+bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsViewCache &view, CElectedMasternodes& elected, bool fJustCheck)
 {
     // Check it again in case a previous version let a bad block in
     if (!CheckBlock(state, !fJustCheck, !fJustCheck))
@@ -2238,7 +2238,7 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
             return state.Abort(_("Failed to write block index"));
     }
 
-    CKeyID KeyID = MN_OnConnectBlock(pindex);
+    CKeyID KeyID = elected.OnConnectBlock(pindex);
     if (!KeyID)
     {
         if (vtx[0].vout.size() != 1)
@@ -2314,7 +2314,7 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
         if (!block.ReadFromDisk(pindex))
             return state.Abort(_("Failed to read block"));
         int64 nStart = GetTimeMicros();
-        if (!block.DisconnectBlock(state, pindex, view))
+        if (!block.DisconnectBlock(state, pindex, view, g_ElectedMasternodes))
             return error("SetBestBlock() : DisconnectBlock %s failed", pindex->GetBlockHash().ToString().c_str());
         if (fBenchmark)
             printf("- Disconnect: %.2fms\n", (GetTimeMicros() - nStart) * 0.001);
@@ -2334,7 +2334,7 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
         if (!block.ReadFromDisk(pindex))
             return state.Abort(_("Failed to read block"));
         int64 nStart = GetTimeMicros();
-        if (!block.ConnectBlock(state, pindex, view)) {
+        if (!block.ConnectBlock(state, pindex, view, g_ElectedMasternodes)) {
             if (state.IsInvalid()) {
                 InvalidChainFound(pindexNew);
                 InvalidBlockFound(pindex);
@@ -3146,6 +3146,7 @@ bool VerifyDB(int nCheckLevel, int nCheckDepth)
     nCheckLevel = std::max(0, std::min(4, nCheckLevel));
     printf("Verifying last %i blocks at level %i\n", nCheckDepth, nCheckLevel);
     CCoinsViewCache coins(*pcoinsTip, true);
+    CElectedMasternodes elected(g_ElectedMasternodes);
     CBlockIndex* pindexState = pindexBest;
     CBlockIndex* pindexFailure = NULL;
     int nGoodTransactions = 0;
@@ -3174,7 +3175,7 @@ bool VerifyDB(int nCheckLevel, int nCheckDepth)
         // check level 3: check for inconsistencies during memory-only disconnect of tip blocks
         if (nCheckLevel >= 3 && pindex == pindexState && (coins.GetCacheSize() + pcoinsTip->GetCacheSize()) <= 2*nCoinCacheSize + 32000) {
             bool fClean = true;
-            if (!block.DisconnectBlock(state, pindex, coins, &fClean))
+            if (!block.DisconnectBlock(state, pindex, coins, elected, &fClean))
                 return error("VerifyDB() : *** irrecoverable inconsistency in block data at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString().c_str());
             pindexState = pindex->pprev;
             if (!fClean) {
@@ -3196,7 +3197,7 @@ bool VerifyDB(int nCheckLevel, int nCheckDepth)
             CBlock block;
             if (!block.ReadFromDisk(pindex))
                 return error("VerifyDB() : *** block.ReadFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString().c_str());
-            if (!block.ConnectBlock(state, pindex, coins))
+            if (!block.ConnectBlock(state, pindex, coins, elected))
                 return error("VerifyDB() : *** found unconnectable block at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString().c_str());
         }
     }
@@ -4903,7 +4904,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
         if (pindexPrev->nHeight + 1 > (int)getThirdHardforkBlock())
         {
-            CMasterNode* pNextPayee = MN_NextPayee(pindexPrev->mn);
+            CMasterNode* pNextPayee = g_ElectedMasternodes.NextPayee(pindexPrev->mn);
             if (pNextPayee)
             {
                 txNew.vout.resize(2);
@@ -5153,8 +5154,9 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             indexDummy.pprev = pindexPrev;
             indexDummy.nHeight = pindexPrev->nHeight + 1;
             CCoinsViewCache viewNew(*pcoinsTip, true);
+            CElectedMasternodes elected = g_ElectedMasternodes;
             CValidationState state;
-            if (!pblock->ConnectBlock(state, &indexDummy, viewNew, true))
+            if (!pblock->ConnectBlock(state, &indexDummy, viewNew, elected, true))
                 throw std::runtime_error("CreateNewBlock() : ConnectBlock failed");
         }
     }

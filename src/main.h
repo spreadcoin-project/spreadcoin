@@ -28,25 +28,7 @@ class CAddress;
 class CInv;
 class CNode;
 class CBitcoinAddress;
-#if ENABLE_DARKSEND_FEATURES
-class CDarkSendPool;
-class CDarkSendSigner;
-class CMasterNode;
-class CMasterNodeVote;
-
-#define MASTERNODE_PAYMENTS_MIN_VOTES 5
-#define MASTERNODE_PAYMENTS_MAX 1
-#define MASTERNODE_PAYMENTS_EXPIRATION 10
-#define START_MASTERNODE_PAYMENTS_TESTNET 1403568776 //Tue, 24 Jun 2014 00:12:56 GMT
-#define START_MASTERNODE_PAYMENTS 1403728576 //Wed, 25 Jun 2014 20:36:16 GMT
-
-#define MASTERNODE_MIN_CONFIRMATIONS           6
-#define MASTERNODE_MIN_MICROSECONDS            5*60*1000*1000
-#define MASTERNODE_PING_SECONDS                30*60
-#define MASTERNODE_EXPIRATION_MICROSECONDS     35*60*1000*1000
-#define MASTERNODE_REMOVAL_MICROSECONDS        35.5*60*1000*1000
-
-#endif // ENABLE_DARKSEND_FEATURES
+class CElectedMasternodes;
 
 struct CBlockIndexWorkComparator;
 
@@ -1617,10 +1599,10 @@ public:
      *  In case pfClean is provided, operation will try to be tolerant about errors, and *pfClean
      *  will be true if no problems were found. Otherwise, the return value will be false in case
      *  of problems. Note that in any case, coins may be modified. */
-    bool DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoinsViewCache &coins, bool *pfClean = NULL);
+    bool DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoinsViewCache &coins, CElectedMasternodes& elected, bool *pfClean = NULL);
 
     // Apply the effects of this block (with given index) on the UTXO set represented by coins
-    bool ConnectBlock(CValidationState &state, CBlockIndex *pindex, CCoinsViewCache &coins, bool fJustCheck=false);
+    bool ConnectBlock(CValidationState &state, CBlockIndex *pindex, CCoinsViewCache &coins, CElectedMasternodes& elected, bool fJustCheck=false);
 
     // Read a block from disk
     bool ReadFromDisk(const CBlockIndex* pindex);
