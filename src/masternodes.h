@@ -9,6 +9,7 @@ static const int64_t g_MinMasternodeAmount = 1000*COIN;
 static const int g_MaxMasternodeVotes = 10;
 static const int g_MasternodesElectionPeriod = 50;
 static const int g_MasternodeRewardPercentage = 30;
+static const int g_MaxMasternodes = 1500;
 
 // Base for masternode messages
 class CMasterNodeBaseMsg
@@ -94,6 +95,9 @@ extern boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
 
 extern CElectedMasternodes g_ElectedMasternodes;
 
+bool MN_IsAcceptableMasternodeInput(const COutPoint& outpoint, CCoinsViewCache *pCoins);
+bool MN_GetKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t& amount, CCoinsViewCache* pCoins);
+
 // Control our masternodes
 bool MN_SetMy(const COutPoint& outpoint, bool my);
 bool MN_Start(const COutPoint& outpoint, const CKey& key);
@@ -105,7 +109,7 @@ void MN_ProcessInstantTx(const CTransaction& tx);
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
 
 // Functions necessary for mining
-void MN_CastVotes(std::vector<COutPoint> vvotes[2]);
+void MN_CastVotes(std::vector<COutPoint> vvotes[2], CCoinsViewCache& coins);
 
 // Initialize elected masternodes after loading blockchain
 void MN_LoadElections();

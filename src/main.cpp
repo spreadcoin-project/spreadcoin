@@ -1049,6 +1049,19 @@ bool CTransaction::AcceptableInputs(CValidationState &state, bool fLimitFree)
     }
 }
 
+static void GetOutput_Impl(const COutPoint& outpoint, CCoinsViewCache* pCoins, CCoinsView& viewDummy, CCoinsViewCache& view, CBlockIndex*& pindex)
+{
+    CCoinsViewCache &viewChain = *pCoins;
+    CCoinsViewMemPool viewMempool(viewChain, mempool);
+    view.SetBackend(viewMempool); // temporarily switch cache backend to db+mempool view
+
+    pindex = viewChain.GetBestBlock();
+
+    const uint256& prevHash = outpoint.hash;
+    CCoins coins;
+    view.GetCoins(prevHash, coins); // this is certainly allowed to fail
+    view.SetBackend(viewDummy); // switch back to avoid locking mempool for too long
+}
 
 bool GetOutput(const COutPoint& outpoint, CCoinsViewCache* pCoins, int& age, CTxOut& out)
 {
@@ -1056,18 +1069,15 @@ bool GetOutput(const COutPoint& outpoint, CCoinsViewCache* pCoins, int& age, CTx
     CCoinsView viewDummy;
     CCoinsViewCache view(viewDummy);
     CBlockIndex* pindex;
+
+    if (pCoins)
+    {
+        GetOutput_Impl(outpoint, pCoins, viewDummy, view, pindex);
+    }
+    else
     {
         LOCK(mempool.cs);
-        CCoinsViewCache &viewChain = pCoins? *pCoins :  *pcoinsTip;
-        CCoinsViewMemPool viewMempool(viewChain, mempool);
-        view.SetBackend(viewMempool); // temporarily switch cache backend to db+mempool view
-
-        pindex = viewChain.GetBestBlock();
-
-        const uint256& prevHash = outpoint.hash;
-        CCoins coins;
-        view.GetCoins(prevHash, coins); // this is certainly allowed to fail
-        view.SetBackend(viewDummy); // switch back to avoid locking mempool for too long
+        GetOutput_Impl(outpoint, pcoinsTip, viewDummy, view, pindex);
     }
 
     if (!view.HaveCoins(outpoint.hash))
@@ -4935,7 +4945,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                 txNew.vout[1].scriptPubKey.SetDestination(CTxDestination(nextPayee));
             }
 
-            MN_CastVotes(pblock->vvotes);
+            MN_CastVotes(pblock->vvotes, view);
         }
 
         // Add our coinbase tx as first transaction

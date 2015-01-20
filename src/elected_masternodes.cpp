@@ -1,4 +1,5 @@
 #include "elected_masternodes.h"
+#include "masternodes.h"
 
 static const unsigned int g_MasternodesStartPayments = 6;
 static const unsigned int g_MasternodesStopPayments = 3;
@@ -14,7 +15,7 @@ bool CElectedMasternodes::NextPayee(const COutPoint& PrevPayee, CCoinsViewCache 
         // Start payments form the beginning
         uint64_t amount;
         outpoint = *masternodes.begin();
-        return getKeyIDAndAmount(outpoint, keyid, amount, pCoins);
+        return MN_GetKeyIDAndAmount(outpoint, keyid, amount, pCoins);
     }
     else
     {
@@ -30,7 +31,7 @@ bool CElectedMasternodes::NextPayee(const COutPoint& PrevPayee, CCoinsViewCache 
 
         uint64_t amount;
         outpoint = *iter;
-        return getKeyIDAndAmount(outpoint, keyid, amount, pCoins);
+        return MN_GetKeyIDAndAmount(outpoint, keyid, amount, pCoins);
     }
 }
 
@@ -43,11 +44,12 @@ CKeyID CElectedMasternodes::FillBlock(CBlockIndex* pindex, CCoinsViewCache &Coin
     pindex->velected[1].clear();
 
     COutPoint payeeOutpoint;
-    CKeyID payee = NextPayee(pindex->pprev->mn, &Coins, payeeOutpoint);
+    CKeyID payee(0);
+    NextPayee(pindex->pprev->mn, &Coins, payee, payeeOutpoint);
 
     for (COutPoint outpoint : masternodes)
     {
-        if (!isAcceptableMasternodeInput(outpoint, Coins))
+        if (!MN_IsAcceptableMasternodeInput(outpoint, &Coins))
         {
             pindex->velected[0].push_back(outpoint);
         }
@@ -64,16 +66,16 @@ CKeyID CElectedMasternodes::FillBlock(CBlockIndex* pindex, CCoinsViewCache &Coin
             {
                 COutPoint outpoint = pair.first;
 
-                bool present = masternodes.find(outpoint) != 0;
+                bool present = masternodes.count(outpoint) != 0;
                 if (j == present)
                     continue;
 
                 if (j && masternodes.size() == g_MaxMasternodes)
                     continue;
-                if (j && !isAcceptableMasternodeInput(outpoint, Coins))
+                if (j && !MN_IsAcceptableMasternodeInput(outpoint, &Coins))
                     continue;
 
-                if (std::find(pindex->velected[j].begin(), pindex->velected[j].end(), outpoint) == pindex->velected[j]->end())
+                if (std::find(pindex->velected[j].begin(), pindex->velected[j].end(), outpoint) == pindex->velected[j].end())
                     continue;
 
                 pindex->velected[j].push_back(outpoint);

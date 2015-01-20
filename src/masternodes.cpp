@@ -17,10 +17,10 @@ static const int g_AnnounceExistencePeriod = 5;
 static const int g_MonitoringPeriod = 100;
 static const int g_MonitoringPeriodMin = 30;
 
-static const int g_MaxMasternodes = 1500;
-
 // If masternode doesn't respond to some message we assume that it has responded in this amount of time.
 static const double g_PenaltyTime = 500.0;
+
+static const double g_MaxScore = 100.0;
 
 // Blockchain length at startup after sync. We don't know anythyng about how well masternodes were behaving before this block.
 static int32_t g_InitialBlock = 0;
@@ -28,6 +28,13 @@ static int32_t g_InitialBlock = 0;
 boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
 static boost::unordered_set<COutPoint> g_OurMasterNodes;
 CElectedMasternodes g_ElectedMasternodes;
+
+bool MN_IsAcceptableMasternodeInput(const COutPoint& outpoint, CCoinsViewCache* pCoins)
+{
+    CKeyID keyid;
+    uint64_t amount;
+    return MN_GetKeyIDAndAmount(outpoint, keyid, amount, pCoins);
+}
 
 std::vector<int> CMasterNode::GetExistenceBlocks() const
 {
@@ -87,10 +94,12 @@ int CMasterNode::AddExistenceMsg(const CMasterNodeExistenceMsg& newMsg)
 
 void CMasterNode::Cleanup()
 {
-    std::remove_if(existenceMsgs.begin(), existenceMsgs.end(), [](const CReceivedExistenceMsg& msg)
+    auto newEnd = std::remove_if(existenceMsgs.begin(), existenceMsgs.end(), [](const CReceivedExistenceMsg& msg)
     {
         return msg.msg.nBlock < nBestHeight - 2*g_MonitoringPeriod;
     });
+
+    existenceMsgs.resize(newEnd - existenceMsgs.begin());
 }
 
 void CMasterNode::UpdateScore() const
@@ -147,7 +156,7 @@ double CMasterNode::GetScore() const
     return score;
 }
 
-static bool getKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t& amount, CCoinsViewCache* pCoins)
+bool MN_GetKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t& amount, CCoinsViewCache* pCoins)
 {
     int age;
     CTxOut out;
@@ -169,13 +178,6 @@ static bool getKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t
     return true;
 }
 
-static bool isAcceptableMasternodeInput(const COutPoint& outpoint, CCoinsViewCache& Coins)
-{
-    CKeyID keyid;
-    uint64_t amount;
-    return getKeyIDAndAmount(outpoint, keyid, amount, &Coins);
-}
-
 static CMasterNode* getMasterNode(const COutPoint& outpoint)
 {
     auto iter = g_MasterNodes.find(outpoint);
@@ -187,7 +189,7 @@ static CMasterNode* getMasterNode(const COutPoint& outpoint)
     {
         CKeyID keyid;
         uint64_t amount;
-        if (!getKeyIDAndAmount(outpoint, keyid, amount, nullptr))
+        if (!MN_GetKeyIDAndAmount(outpoint, keyid, amount, nullptr))
             return nullptr;
 
         CMasterNode& mn = g_MasterNodes[outpoint];
@@ -220,6 +222,17 @@ void MN_ProcessBlocks()
     if (g_InitialBlock == 0)
         g_InitialBlock = nBestHeight;
 
+    if (nBestHeight % 10 == 0)
+    {
+        boost::unordered_map<COutPoint, CMasterNode> masternodes;
+        for (auto& pair : g_MasterNodes)
+        {
+            if (MN_IsAcceptableMasternodeInput(pair.first, nullptr))
+                masternodes[pair.first] = std::move(pair.second);
+        }
+        g_MasterNodes = masternodes;
+    }
+
     for (CBlockIndex* pBlock = pindexBest;
          pBlock->nHeight > g_InitialBlock && pBlock->nReceiveTime == 0;
          pBlock = pBlock->pprev)
@@ -233,6 +246,9 @@ void MN_ProcessBlocks()
 
             std::vector<int> vblocks = mn.GetExistenceBlocks();
             if (std::find(vblocks.begin(), vblocks.end(), pBlock->nHeight) == vblocks.end())
+                continue;
+
+            if (!MN_IsAcceptableMasternodeInput(mn.outpoint, nullptr))
                 continue;
 
             CMasterNodeExistenceMsg mnem;
@@ -379,7 +395,7 @@ static bool compareMasternodesByScore(const CMasterNode* pLeft, const CMasterNod
     return a < b;
 }
 
-void MN_CastVotes(std::vector<COutPoint> vvotes[])
+void MN_CastVotes(std::vector<COutPoint> vvotes[], CCoinsViewCache &coins)
 {
     vvotes[0].clear();
     vvotes[1].clear();
@@ -393,7 +409,14 @@ void MN_CastVotes(std::vector<COutPoint> vvotes[])
 
     for (const auto& pair : g_MasterNodes)
     {
-        vknown.push_back(&pair.second);
+        const CMasterNode& mn = pair.second;
+
+        if (!MN_IsAcceptableMasternodeInput(mn.outpoint, &coins))
+            continue;
+        if (mn.GetScore() > g_MaxScore)
+            continue;
+
+        vknown.push_back(&mn);
     }
 
     for (const COutPoint& outpoint : g_ElectedMasternodes.masternodes)
