@@ -44,7 +44,7 @@ MiningPage::MiningPage(QWidget *parent) :
     connect(ui->pushSwitchMining, SIGNAL(clicked()), this, SLOT(switchMining()));
 
     updateUI();
-    startTimer(500);
+    startTimer(1500);
 }
 
 MiningPage::~MiningPage()
