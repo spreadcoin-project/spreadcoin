@@ -5363,7 +5363,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
     CReserveKey reservekey(pwallet);
 
     try { loop {
-       while (vNodes.empty())
+       while (vNodes.empty() && !fTestNet)
             MilliSleep(1000);
 
         //
@@ -5466,7 +5466,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
 
             // Check for stop or if block needs to be rebuilt
             boost::this_thread::interruption_point();
-            if (vNodes.empty())
+            if (vNodes.empty() && !fTestNet)
                 break;
             if (pblock->nNonce >= 0xffff0000)
                 break;
