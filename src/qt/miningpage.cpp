@@ -12,7 +12,8 @@ extern json_spirit::Value GetNetworkHashPS(int lookup, int height);
 
 MiningPage::MiningPage(QWidget *parent) :
     QWidget(parent),
-    ui(new Ui::MiningPage)
+    ui(new Ui::MiningPage),
+    hasMiningprivkey(false)
 {
     ui->setupUi(this);
 
@@ -32,6 +33,7 @@ MiningPage::MiningPage(QWidget *parent) :
             CBitcoinAddress Address;
             Address.Set(Secret.GetKey().GetPubKey().GetID());
             ui->labelAddress->setText(QString("All mined coins will go to to %1").arg(Address.ToString().c_str()));
+            hasMiningprivkey = true;
         }
     }
 
@@ -77,7 +79,7 @@ void MiningPage::restartMining(bool fGenerate)
     mapArgs["-genproclimit"] = QString("%1").arg(nThreads).toUtf8().data();
 
     // unlock wallet before mining
-    if (fGenerate && !unlockContext.get())
+    if (fGenerate && !hasMiningprivkey && !unlockContext.get())
     {
         this->unlockContext.reset(new WalletModel::UnlockContext(model->requestUnlock()));
         if (!unlockContext->isValid())
@@ -93,7 +95,7 @@ void MiningPage::restartMining(bool fGenerate)
     setgenerate(Args, false);
 
     // lock wallet after mining
-    if (!fGenerate)
+    if (!fGenerate && !hasMiningprivkey)
         unlockContext.reset(NULL);
 
     updateUI();
