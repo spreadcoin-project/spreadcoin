@@ -37,7 +37,7 @@ MiningPage::MiningPage(QWidget *parent) :
         }
     }
 
-    ui->sliderCores->setMinimum(1);
+    ui->sliderCores->setMinimum(0);
     ui->sliderCores->setMaximum(nThreads);
     ui->sliderCores->setValue(nUseThreads);
     ui->labelNCores->setText(QString("%1").arg(nUseThreads));
