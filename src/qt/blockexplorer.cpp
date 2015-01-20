@@ -211,7 +211,9 @@ std::string BlockToString(CBlockIndex* pBlock)
         _("Nonce"),       utostr(block.nNonce),
         _("Version"),     itostr(block.nVersion),
         _("Hash"),        "<pre>" + block.GetHash().GetHex() + "</pre>",
-        _("Merkle Root"), "<pre>" + block.hashMerkleRoot.GetHex() + "</pre>"
+        _("Merkle Root"), "<pre>" + block.hashMerkleRoot.GetHex() + "</pre>",
+        _("Hash Whole Block"), "<pre>" + block.hashWholeBlock.GetHex() + "</pre>",
+        _("Miner Signature"), "<pre>" + block.MinerSignature.ToString() + "</pre>"
     };
 
     std::string BlockContent = makeHTMLTable(BlockContentCells, sizeof(BlockContentCells)/(2*sizeof(std::string)), 2);
