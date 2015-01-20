@@ -3,6 +3,7 @@
 
 #include <boost/unordered_map.hpp>
 #include "main.h"
+#include "elected_masternodes.h"
 
 static const int64_t g_MinMasternodeAmount = 1000*COIN;
 static const int g_MaxMasternodeVotes = 10;
@@ -86,23 +87,6 @@ public:
     int AddExistenceMsg(const CMasterNodeExistenceMsg& msg);
 };
 
-class CElectedMasternodes
-{
-    bool elect(const COutPoint& outpoint, bool elect, CCoinsViewCache &Coins);
-
-public:
-    std::set<COutPoint> masternodes;
-
-    // Executed on connecting/disconnectig blocks
-    // These functions add or remove nodes to the set of elected masternodes
-    CKeyID OnConnectBlock(CBlockIndex* pindex, CCoinsViewCache &Coins); // returns expected payee
-    void OnDisconnectBlock(CBlockIndex* pindex, CCoinsViewCache &Coins);
-
-    CKeyID NextPayee(const COutPoint& PrevPayee, CCoinsViewCache *pCoins, COutPoint& outpoint);
-
-    bool IsElected(const COutPoint& outpoint);
-};
-
 // All these variables and functions require locking cs_main.
 
 // All known masternodes, this may include outdated and stopped masternodes as well as not yet elected.
@@ -124,7 +108,7 @@ void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
 void MN_CastVotes(std::vector<COutPoint> vvotes[2]);
 
 // Initialize elected masternodes after loading blockchain
-void MN_LoadElections(CCoinsViewCache &coins);
+void MN_LoadElections();
 
 inline int64_t MN_GetReward(int64_t BlockValue)
 {

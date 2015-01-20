@@ -97,8 +97,8 @@ void MasternodePage::updateMasternodes()
     for (unsigned int i = 0; i < g_ElectedMasternodes.masternodes.size(); i++)
     {
         COutPoint outpoint;
-        CKeyID keyid = g_ElectedMasternodes.NextPayee(curPayment, nullptr, outpoint);
-        if (!keyid)
+        CKeyID keyid;
+        if (!g_ElectedMasternodes.NextPayee(curPayment, nullptr, keyid, outpoint))
             break;
         curPayment = outpoint;
         paymentIn[curPayment] = i + 1;

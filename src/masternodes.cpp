@@ -12,9 +12,6 @@ static int64_t GetMontoneTimeMs()
 
 static const int g_MasternodeMinConfirmations = 10;
 
-static const unsigned int g_MasternodesStartPayments = 6;
-static const unsigned int g_MasternodesStopPayments = 3;
-
 static const int g_AnnounceExistenceRestartPeriod = 20;
 static const int g_AnnounceExistencePeriod = 5;
 static const int g_MonitoringPeriod = 100;
@@ -152,8 +149,12 @@ double CMasterNode::GetScore() const
 
 static bool getKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t& amount, CCoinsViewCache* pCoins)
 {
+    int age;
     CTxOut out;
-    if(GetInputAge(outpoint, pCoins, out) < g_MasternodeMinConfirmations)
+    if(!GetOutput(outpoint, pCoins, age, out))
+        return false;
+
+    if (age < g_MasternodeMinConfirmations)
         return false;
 
     if (out.IsNull() || out.nValue < g_MinMasternodeAmount)
@@ -333,38 +334,6 @@ bool MN_SetMy(const COutPoint& outpoint, bool my)
     return true;
 }
 
-CKeyID CElectedMasternodes::NextPayee(const COutPoint& PrevPayee, CCoinsViewCache *pCoins, COutPoint& outpoint)
-{
-    if (PrevPayee.IsNull())
-    {
-        // Not enough masternodes to start payments
-        if (masternodes.size() < g_MasternodesStartPayments)
-            return CKeyID(0);
-
-        // Start payments form the beginning
-        CKeyID keyid;
-        uint64_t amount;
-        outpoint = *masternodes.begin();
-        return getKeyIDAndAmount(outpoint, keyid, amount, pCoins)? keyid : CKeyID(0);
-    }
-    else
-    {
-        // Stop payments if there are not enough masternodes
-        if (masternodes.size() < g_MasternodesStopPayments)
-            return CKeyID(0);
-
-        auto iter = masternodes.upper_bound(PrevPayee);
-
-        // Rewind
-        if (iter == masternodes.end())
-            iter = masternodes.begin();
-
-        CKeyID keyid;
-        uint64_t amount;
-        outpoint = *iter;
-        return getKeyIDAndAmount(outpoint, keyid, amount, pCoins)? keyid : CKeyID(0);
-    }
-}
 
 template<typename T, typename TComp>
 inline void set_differences(const std::vector<T>& A, const std::vector<T>& B, std::vector<T>& resultA, std::vector<T>& resultB, TComp comp)
@@ -504,85 +473,7 @@ void MN_GetVotes(CBlockIndex* pindex, boost::unordered_map<COutPoint, int> vvote
     }
 }
 
-bool CElectedMasternodes::elect(const COutPoint& outpoint, bool elect, CCoinsViewCache &Coins)
+void MN_LoadElections()
 {
-    if (elect)
-    {
-        if (masternodes.size() == g_MaxMasternodes)
-            return false;
-        if (!isAcceptableMasternodeInput(outpoint, Coins))
-            return false;
-        return masternodes.insert(outpoint).second;
-    }
-    else
-    {
-        return masternodes.erase(outpoint) != 0;
-    }
-}
-
-CKeyID CElectedMasternodes::OnConnectBlock(CBlockIndex* pindex, CCoinsViewCache &Coins)
-{
-    if (pindex->nHeight <= (int)getThirdHardforkBlock())
-        return CKeyID(0);
-
-    std::vector<COutPoint> invalidated;
-    for (COutPoint outpoint : masternodes)
-    {
-        if (!isAcceptableMasternodeInput(outpoint, Coins))
-        {
-            pindex->velected[0].push_back(outpoint);
-        }
-    }
-    for (COutPoint outpoint : pindex->velected[0])
-    {
-        elect(outpoint, false, Coins);
-    }
-
-    COutPoint payeeOutpoint;
-    CKeyID payee = NextPayee(pindex->pprev->mn, &Coins, payeeOutpoint);
-
-    boost::unordered_map<COutPoint, int> vvotes[2];
-    MN_GetVotes(pindex, vvotes);
-
-    for (int j = 0; j < 2; j++)
-    {
-        for (const std::pair<COutPoint, int>& pair : vvotes[j])
-        {
-            if (pair.second > g_MasternodesElectionPeriod/2 && elect(pair.first, j, Coins))
-                pindex->velected[j].push_back(pair.first);
-        }
-    }
-
-    if (!payee)
-        return CKeyID(0);
-
-    pindex->mn = payeeOutpoint;
-    return payee;
-}
-
-void CElectedMasternodes::OnDisconnectBlock(CBlockIndex* pindex, CCoinsViewCache &Coins)
-{
-    // Undo masternode election
-    for (int j = 0; j < 2; j++)
-    {
-        for (const COutPoint& outpoint : pindex->velected[j])
-        {
-            assert(elect(outpoint, !j, Coins));
-        }
-    }
-}
-
-void MN_LoadElections(CCoinsViewCache& coins)
-{
-    for (CBlockIndex* pindex = FindBlockByHeight(getThirdHardforkBlock() + 1);
-         pindex;
-         pindex = pindex->pnext)
-    {
-        g_ElectedMasternodes.OnConnectBlock(pindex, coins);
-    }
-}
-
-bool CElectedMasternodes::IsElected(const COutPoint& outpoint)
-{
-    return masternodes.count(outpoint) != 0;
+    g_ElectedMasternodes.ApplyMany(FindBlockByHeight(getThirdHardforkBlock() + 1));
 }

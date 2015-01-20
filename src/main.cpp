@@ -1050,7 +1050,7 @@ bool CTransaction::AcceptableInputs(CValidationState &state, bool fLimitFree)
 }
 
 
-int GetInputAge(const COutPoint& outpoint, CCoinsViewCache* pCoins, CTxOut& out)
+bool GetOutput(const COutPoint& outpoint, CCoinsViewCache* pCoins, int& age, CTxOut& out)
 {
     // Fetch previous transactions (inputs):
     CCoinsView viewDummy;
@@ -1071,14 +1071,15 @@ int GetInputAge(const COutPoint& outpoint, CCoinsViewCache* pCoins, CTxOut& out)
     }
 
     if (!view.HaveCoins(outpoint.hash))
-        return -1;
+        return false;
 
     const CCoins &coins = view.GetCoins(outpoint.hash);
     if (coins.vout.size() <= outpoint.n)
-        return -1;
+        return false;
     out = coins.vout[outpoint.n];
 
-    return (pindex->nHeight+1) - coins.nHeight;
+    age = (pindex->nHeight+1) - coins.nHeight;
+    return true;
 }
 
 
@@ -2066,7 +2067,7 @@ bool CBlock::DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoin
         }
     }
 
-    elected.OnDisconnectBlock(pindex, view);
+    elected.ApplyBlock(pindex, false);
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev);
@@ -2246,8 +2247,7 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
         if (!pblocktree->WriteBlockIndex(blockindex))
             return state.Abort(_("Failed to write block index"));
     }
-
-    CKeyID KeyID = elected.OnConnectBlock(pindex, view);
+    CKeyID KeyID = elected.FillBlock(pindex, view);
     if (!KeyID)
     {
         if (vtx[0].vout.size() != 1)
@@ -2260,6 +2260,8 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
         if (extractKeyID(vtx[0].vout[1].scriptPubKey) != KeyID)
             return state.DoS(100, error("ConnectBlock() : wrong masternode payment"));
     }
+
+    elected.ApplyBlock(pindex, true);
 
     if (fTxIndex)
         if (!pblocktree->WriteTxIndex(vPos))
@@ -2610,7 +2612,7 @@ bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, unsigne
 }
 
 
-bool CBlock::CheckBlock(CValidationState &state, bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckVotes) const
+bool CBlock::CheckBlock(CValidationState &state, bool fCheckPOW, bool fCheckMerkleRoot) const
 {
     // These are checks that are independent of context
     // that can be verified before saving an orphan block.
@@ -2668,6 +2670,15 @@ bool CBlock::CheckBlock(CValidationState &state, bool fCheckPOW, bool fCheckMerk
     // Check merkle root
     if (fCheckMerkleRoot && hashMerkleRoot != BuildMerkleTree())
         return state.DoS(100, error("CheckBlock() : hashMerkleRoot mismatch"));
+
+    for (int i = 0; i < 2; i++)
+    {
+        for (auto iter = vvotes[i].begin(); iter < vvotes[i].end(); ++iter)
+        {
+            if (std::find(iter + 1,  vvotes[i].end(), *iter) != vvotes[i].end())
+                return state.DoS(100, error("CheckBlock() : multiple votes"));
+        }
+    }
 
     return true;
 }
@@ -3137,7 +3148,7 @@ bool static LoadBlockIndexDB()
          pindexPrev->pnext = pindex;
          pindex = pindexPrev;
     }
-    MN_LoadElections(*pcoinsTip);
+    MN_LoadElections();
     printf("LoadBlockIndexDB(): hashBestChain=%s  height=%d date=%s\n",
         hashBestChain.ToString().c_str(), nBestHeight,
         DateTimeStrFormat("%Y-%m-%d %H:%M:%S", pindexBest->GetBlockTime()).c_str());
@@ -3173,7 +3184,7 @@ bool VerifyDB(int nCheckLevel, int nCheckDepth)
         if (!block.ReadFromDisk(pindex))
             return error("VerifyDB() : *** block.ReadFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString().c_str());
         // check level 1: verify block validity
-        if (nCheckLevel >= 1 && !block.CheckBlock(state, true, true, false))
+        if (nCheckLevel >= 1 && !block.CheckBlock(state, true, true))
             return error("VerifyDB() : *** found bad block at %d, hash=%s\n", pindex->nHeight, pindex->GetBlockHash().ToString().c_str());
         // check level 2: verify undo validity
         if (nCheckLevel >= 2 && pindex) {
@@ -4917,8 +4928,8 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         if (pindexPrev->nHeight + 1 > (int)getThirdHardforkBlock())
         {
             COutPoint outpoint;
-            CKeyID nextPayee = g_ElectedMasternodes.NextPayee(pindexPrev->mn, &view, outpoint);
-            if (nextPayee != 0)
+            CKeyID nextPayee;
+            if (g_ElectedMasternodes.NextPayee(pindexPrev->mn, &view, nextPayee, outpoint))
             {
                 txNew.vout.resize(2);
                 txNew.vout[1].scriptPubKey.SetDestination(CTxDestination(nextPayee));

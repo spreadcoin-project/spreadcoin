@@ -243,7 +243,8 @@ HEADERS += src/qt/bitcoingui.h \
     src/ecdsa.h \
     src/qt/miningpage.h \
     src/masternodes.h \
-    src/qt/masternodepage.h
+    src/qt/masternodepage.h \
+    src/elected_masternodes.h
 
 SOURCES += src/qt/bitcoin.cpp \
     src/qt/bitcoingui.cpp \
@@ -332,7 +333,8 @@ SOURCES += src/qt/bitcoin.cpp \
     src/ecdsa.cpp \
     src/qt/miningpage.cpp \
     src/masternodes.cpp \
-    src/qt/masternodepage.cpp
+    src/qt/masternodepage.cpp \
+    src/elected_masternodes.cpp
 
 RESOURCES += src/qt/bitcoin.qrc
 

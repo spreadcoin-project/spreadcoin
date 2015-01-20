@@ -177,8 +177,8 @@ bool ProcessMessages(CNode* pfrom);
 bool SendMessages(CNode* pto, bool fSendTrickle);
 /** Run an instance of the script checking thread */
 void ThreadScriptCheck();
-//** Get age of an input */
-int GetInputAge(const COutPoint &outpoint, CCoinsViewCache *pCoins, CTxOut &out);
+/** Get age of an input */
+bool GetOutput(const COutPoint &outpoint, CCoinsViewCache *pCoins, int &age, CTxOut &out);
 /** Run the miner threads */
 void GenerateBitcoins(bool fGenerate, CWallet* pwallet);
 /** Generate a new block, without valid proof-of-work */
@@ -1611,7 +1611,7 @@ public:
     bool AddToBlockIndex(CValidationState &state, const CDiskBlockPos &pos);
 
     // Context-independent validity checks
-    bool CheckBlock(CValidationState &state, bool fCheckPOW=true, bool fCheckMerkleRoot=true, bool fCheckVotes=true) const;
+    bool CheckBlock(CValidationState &state, bool fCheckPOW=true, bool fCheckMerkleRoot=true) const;
 
     // Store block on disk
     // if dbp is provided, the file is known to already reside on disk
@@ -2010,6 +2010,8 @@ public:
         {
             READWRITE(vvotes[0]);
             READWRITE(vvotes[1]);
+            READWRITE(velected[0]);
+            READWRITE(velected[1]);
             READWRITE(mn);
         }
     )
