@@ -88,17 +88,17 @@ public:
 
 class CElectedMasternodes
 {
-    bool elect(const COutPoint& outpoint, bool elect);
+    bool elect(const COutPoint& outpoint, bool elect, CCoinsViewCache &Coins);
 
 public:
     std::set<COutPoint> masternodes;
 
     // Executed on connecting/disconnectig blocks
     // These functions add or remove nodes to the set of elected masternodes
-    CKeyID OnConnectBlock(CBlockIndex* pindex); // returns expected payee
-    void OnDisconnectBlock(CBlockIndex* pindex);
+    CKeyID OnConnectBlock(CBlockIndex* pindex, CCoinsViewCache &Coins); // returns expected payee
+    void OnDisconnectBlock(CBlockIndex* pindex, CCoinsViewCache &Coins);
 
-    CMasterNode* NextPayee(const COutPoint& PrevPayee);
+    CKeyID NextPayee(const COutPoint& PrevPayee, CCoinsViewCache *pCoins, COutPoint& outpoint);
 
     bool IsElected(const COutPoint& outpoint);
 };
@@ -124,7 +124,7 @@ void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
 void MN_CastVotes(std::vector<COutPoint> vvotes[2]);
 
 // Initialize elected masternodes after loading blockchain
-void MN_LoadElections();
+void MN_LoadElections(CCoinsViewCache &coins);
 
 inline int64_t MN_GetReward(int64_t BlockValue)
 {

@@ -178,7 +178,7 @@ bool SendMessages(CNode* pto, bool fSendTrickle);
 /** Run an instance of the script checking thread */
 void ThreadScriptCheck();
 //** Get age of an input */
-int GetInputAge(const COutPoint &outpoint);
+int GetInputAge(const COutPoint &outpoint, CCoinsViewCache *pCoins, CTxOut &out);
 /** Run the miner threads */
 void GenerateBitcoins(bool fGenerate, CWallet* pwallet);
 /** Generate a new block, without valid proof-of-work */

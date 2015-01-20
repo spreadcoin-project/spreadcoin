@@ -13,6 +13,7 @@ enum EColumn
     C_ADDRESS,
     C_AMOUNT,
     C_ELECTED,
+    C_NEXT_PAYMENT,
     C_SCORE,
     C_VOTES,
     C_CONTROL,
@@ -48,6 +49,7 @@ MasternodePage::MasternodePage(QWidget *parent) :
     ui->tableWidget->setHorizontalHeaderItem((int)C_OUTPUT,  new QTableWidgetItem(tr("Output")));
     ui->tableWidget->setHorizontalHeaderItem((int)C_CONTROL, new QTableWidgetItem(tr("Control")));
     ui->tableWidget->setHorizontalHeaderItem((int)C_SCORE,   new QTableWidgetItem(tr("Score")));
+    ui->tableWidget->setHorizontalHeaderItem((int)C_NEXT_PAYMENT, new QTableWidgetItem(tr("Next Payment")));
 }
 
 MasternodePage::~MasternodePage()
@@ -90,6 +92,18 @@ void MasternodePage::updateMasternodes()
     QTableWidget* pTable = ui->tableWidget;
     pTable->setRowCount(0);
 
+    boost::unordered_map<COutPoint, int> paymentIn;
+    COutPoint curPayment = pindexBest->mn;
+    for (unsigned int i = 0; i < g_ElectedMasternodes.masternodes.size(); i++)
+    {
+        COutPoint outpoint;
+        CKeyID keyid = g_ElectedMasternodes.NextPayee(curPayment, nullptr, outpoint);
+        if (!keyid)
+            break;
+        curPayment = outpoint;
+        paymentIn[curPayment] = i + 1;
+    }
+
     for (const std::pair<COutPoint, CMasterNode>& pair : g_MasterNodes)
     {
         const CMasterNode& mn = pair.second;
@@ -113,12 +127,26 @@ void MasternodePage::updateMasternodes()
         pTable->setItem(iRow, (int)C_ELECTED, new QTableWidgetItem(QString("%1").arg(elected? tr("yes") : "")));
         pTable->setItem(iRow, (int)C_VOTES, new QTableWidgetItem(QString("%1%").arg(votes*100.0/g_MasternodesElectionPeriod)));
 
+        auto iterPaymentIn = paymentIn.find(mn.outpoint);
+        if (iterPaymentIn != paymentIn.end())
+            pTable->setItem(iRow, (int)C_NEXT_PAYMENT, new QTableWidgetItem(QString("%1 min").arg(iterPaymentIn->second)));
+        else
+            pTable->setItem(iRow, (int)C_NEXT_PAYMENT, new QTableWidgetItem(QString("")));
+
         if (mn.my)
         {
             MasternodeCheckbox* pButton = new MasternodeCheckbox(mn.keyid, mn.outpoint);
             pButton->setChecked(mn.privkey.IsValid());
             connect(pButton, SIGNAL(switchMasternode(const CKeyID&, const COutPoint&, bool)), this, SLOT(switchMasternode(const CKeyID&, const COutPoint&, bool)));
-            pTable->setCellWidget(iRow, (int)C_CONTROL, pButton);
+
+            QWidget *pWidget = new QWidget();
+            QHBoxLayout *pLayout = new QHBoxLayout(pWidget);
+            pLayout->addWidget(pButton);
+            pLayout->setAlignment(Qt::AlignCenter);
+            pLayout->setContentsMargins(0,0,0,0);
+            pWidget->setLayout(pLayout);
+
+            pTable->setCellWidget(iRow, (int)C_CONTROL, pWidget);
         }
     }
 }

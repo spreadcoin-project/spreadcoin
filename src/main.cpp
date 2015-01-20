@@ -1050,16 +1050,19 @@ bool CTransaction::AcceptableInputs(CValidationState &state, bool fLimitFree)
 }
 
 
-int GetInputAge(const COutPoint& outpoint)
+int GetInputAge(const COutPoint& outpoint, CCoinsViewCache* pCoins, CTxOut& out)
 {
     // Fetch previous transactions (inputs):
     CCoinsView viewDummy;
     CCoinsViewCache view(viewDummy);
+    CBlockIndex* pindex;
     {
         LOCK(mempool.cs);
-        CCoinsViewCache &viewChain = *pcoinsTip;
+        CCoinsViewCache &viewChain = pCoins? *pCoins :  *pcoinsTip;
         CCoinsViewMemPool viewMempool(viewChain, mempool);
         view.SetBackend(viewMempool); // temporarily switch cache backend to db+mempool view
+
+        pindex = viewChain.GetBestBlock();
 
         const uint256& prevHash = outpoint.hash;
         CCoins coins;
@@ -1067,9 +1070,15 @@ int GetInputAge(const COutPoint& outpoint)
         view.SetBackend(viewDummy); // switch back to avoid locking mempool for too long
     }
 
-    const CCoins &coins = view.GetCoins(outpoint.hash);
+    if (!view.HaveCoins(outpoint.hash))
+        return -1;
 
-    return (pindexBest->nHeight+1) - coins.nHeight;
+    const CCoins &coins = view.GetCoins(outpoint.hash);
+    if (coins.vout.size() <= outpoint.n)
+        return -1;
+    out = coins.vout[outpoint.n];
+
+    return (pindex->nHeight+1) - coins.nHeight;
 }
 
 
@@ -2057,7 +2066,7 @@ bool CBlock::DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoin
         }
     }
 
-    elected.OnDisconnectBlock(pindex);
+    elected.OnDisconnectBlock(pindex, view);
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev);
@@ -2238,7 +2247,7 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
             return state.Abort(_("Failed to write block index"));
     }
 
-    CKeyID KeyID = elected.OnConnectBlock(pindex);
+    CKeyID KeyID = elected.OnConnectBlock(pindex, view);
     if (!KeyID)
     {
         if (vtx[0].vout.size() != 1)
@@ -2275,6 +2284,7 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
     // All modifications to the coin state will be done in this cache.
     // Only when all have succeeded, we push it to pcoinsTip.
     CCoinsViewCache view(*pcoinsTip, true);
+    CElectedMasternodes elected = g_ElectedMasternodes;
 
     // Find the fork (typically, there is none)
     CBlockIndex* pfork = view.GetBestBlock();
@@ -2314,7 +2324,7 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
         if (!block.ReadFromDisk(pindex))
             return state.Abort(_("Failed to read block"));
         int64 nStart = GetTimeMicros();
-        if (!block.DisconnectBlock(state, pindex, view, g_ElectedMasternodes))
+        if (!block.DisconnectBlock(state, pindex, view, elected))
             return error("SetBestBlock() : DisconnectBlock %s failed", pindex->GetBlockHash().ToString().c_str());
         if (fBenchmark)
             printf("- Disconnect: %.2fms\n", (GetTimeMicros() - nStart) * 0.001);
@@ -2334,7 +2344,7 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
         if (!block.ReadFromDisk(pindex))
             return state.Abort(_("Failed to read block"));
         int64 nStart = GetTimeMicros();
-        if (!block.ConnectBlock(state, pindex, view, g_ElectedMasternodes)) {
+        if (!block.ConnectBlock(state, pindex, view, elected)) {
             if (state.IsInvalid()) {
                 InvalidChainFound(pindexNew);
                 InvalidBlockFound(pindex);
@@ -2356,6 +2366,8 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
     int64 nTime = GetTimeMicros() - nStart;
     if (fBenchmark)
         printf("- Flush %i transactions: %.2fms (%.4fms/tx)\n", nModified, 0.001 * nTime, 0.001 * nTime / nModified);
+
+    g_ElectedMasternodes = elected;
 
     // Make sure it's successfully written to disk before changing memory structure
     bool fIsInitialDownload = IsInitialBlockDownload();
@@ -3125,7 +3137,7 @@ bool static LoadBlockIndexDB()
          pindexPrev->pnext = pindex;
          pindex = pindexPrev;
     }
-    MN_LoadElections();
+    MN_LoadElections(*pcoinsTip);
     printf("LoadBlockIndexDB(): hashBestChain=%s  height=%d date=%s\n",
         hashBestChain.ToString().c_str(), nBestHeight,
         DateTimeStrFormat("%Y-%m-%d %H:%M:%S", pindexBest->GetBlockTime()).c_str());
@@ -4904,13 +4916,12 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
         if (pindexPrev->nHeight + 1 > (int)getThirdHardforkBlock())
         {
-            CMasterNode* pNextPayee = g_ElectedMasternodes.NextPayee(pindexPrev->mn);
-            if (pNextPayee)
+            COutPoint outpoint;
+            CKeyID nextPayee = g_ElectedMasternodes.NextPayee(pindexPrev->mn, &view, outpoint);
+            if (nextPayee != 0)
             {
                 txNew.vout.resize(2);
-                txNew.vout[1].scriptPubKey = scriptPubKeyIn;
-                CScript script;
-                script.SetDestination(CTxDestination(pNextPayee->keyid));
+                txNew.vout[1].scriptPubKey.SetDestination(CTxDestination(nextPayee));
             }
 
             MN_CastVotes(pblock->vvotes);
