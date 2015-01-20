@@ -117,8 +117,6 @@ Value setgenerate(const Array& params, bool fHelp)
     {
         int nGenProcLimit = params[1].get_int();
         mapArgs["-genproclimit"] = itostr(nGenProcLimit);
-        if (nGenProcLimit == 0)
-            fGenerate = false;
     }
     mapArgs["-gen"] = (fGenerate ? "1" : "0");
 
