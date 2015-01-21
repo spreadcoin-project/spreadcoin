@@ -117,8 +117,6 @@ Value setgenerate(const Array& params, bool fHelp)
     {
         int nGenProcLimit = params[1].get_int();
         mapArgs["-genproclimit"] = itostr(nGenProcLimit);
-        if (nGenProcLimit == 0)
-            fGenerate = false;
     }
     mapArgs["-gen"] = (fGenerate ? "1" : "0");
 
@@ -187,7 +185,7 @@ Value getwork(const Array& params, bool fHelp)
             "Submit work.\n"
         );
 
-    if (vNodes.empty())
+    if (vNodes.empty() && !fTestNet)
         throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "SpreadCoin is not connected!");
 
     if (IsInitialBlockDownload())
@@ -362,7 +360,7 @@ Value getblocktemplate(const Array& params, bool fHelp)
     if (strMode != "template")
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mode");
 
-    if (vNodes.empty())
+    if (vNodes.empty() && !fTestNet)
         throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "SpreadCoin is not connected!");
 
     if (IsInitialBlockDownload())

@@ -39,11 +39,13 @@ namespace Checkpoints
         (  14000, uint256("0x22ec417280cb773328d00de54e12778daf5b3456ffa77c6e88ab71fdaf1fa67e"))
         (  93000, uint256("0x60324bf217b223c295282aeaa7fcd38ab4e5dc5b44129564128fbaec38fed070"))
         ( 146400, uint256("0xd5f22372d5f32b18ac8d32f7e026379194b44fd560be097bca8337187adf40d6"))
+        ( 191560, uint256("0xbabe3c0ed8a4ebbc2164716b4b066355cad952dfc811bec5accce0eadf92088e"))
+        ( 231930, uint256("0xa8f4770e17a8c80c4ea6676b1cdf7cf1987be09cb55f0d10c45522625501dec2"))
         ;
     static const CCheckpointData data = {
         &mapCheckpoints,
-        1416674918, // * UNIX timestamp of last checkpoint block
-        149415,     // * total number of transactions between genesis and last checkpoint
+        1421787289, // * UNIX timestamp of last checkpoint block
+        239377,     // * total number of transactions between genesis and last checkpoint
                     //   (the tx=... number in the SetBestChain debug.log lines)
         150.0     // * estimated number of transactions per day after checkpoint
     };
@@ -119,6 +121,14 @@ namespace Checkpoints
         const MapCheckpoints& checkpoints = *Checkpoints().mapCheckpoints;
 
         return checkpoints.rbegin()->first;
+    }
+
+    unsigned int LastCheckPoint()
+    {
+        if (Checkpoints().mapCheckpoints->empty())
+            return 0;
+
+        return Checkpoints().mapCheckpoints->rbegin()->first;
     }
 
     CBlockIndex* GetLastCheckpoint(const std::map<uint256, CBlockIndex*>& mapBlockIndex)
