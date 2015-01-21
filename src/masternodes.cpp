@@ -252,6 +252,8 @@ void MN_ProcessBlocks()
                 continue;
 
             CMasterNodeExistenceMsg mnem;
+            mnem.pubkey2.pubkey2 = mn.privkey.GetPubKey();
+            mnem.pubkey2.signature = mn.privkey.Sign(mnem.pubkey2.pubkey2.GetHash());
             mnem.outpoint = mn.outpoint;
             mnem.hashBlock = pBlock->GetBlockHash();
             mnem.nBlock = pBlock->nHeight;
@@ -277,9 +279,7 @@ static int MN_ProcessExistenceMsg_Impl(const CMasterNodeExistenceMsg& mnem)
         return 20;
 
     // Check signature
-    CPubKey pubkey;
-    pubkey.RecoverCompact(mnem.GetHashForSignature(), mnem.signature);
-    if (pubkey.GetID() != pmn->keyid)
+    if (!mnem.CheckSignature() || mnem.GetOutpointKeyID() != pmn->keyid)
         return 100;
 
     printf("Masternode existence message mn=%s:%u, block=%u\n", mnem.outpoint.hash.ToString().c_str(), mnem.outpoint.n, mnem.nBlock);

@@ -12,16 +12,53 @@ static const int g_MasternodeRewardPercentage = 30;
 static const int g_MaxMasternodes = 1500;
 
 // Base for masternode messages
+class CMasterNodePubkey2
+{
+public:
+    CPubKey pubkey2;
+
+    // Signed with outpoint key.
+    CSignature signature;
+
+    CKeyID GetOutpointKeyID() const
+    {
+        CPubKey pubkey;
+        pubkey.RecoverCompact(pubkey2.GetHash(), signature);
+        return pubkey.GetID();
+    }
+
+    IMPLEMENT_SERIALIZE
+    (
+        READWRITE(pubkey2);
+        READWRITE(signature);
+    )
+};
+
+// Base for masternode messages
 class CMasterNodeBaseMsg
 {
 public:
+    CMasterNodePubkey2 pubkey2;
+
     // Masternode indentifier
     COutPoint outpoint;
 
-    // Signed with oupoint key.
+    // Signed with pubkey2.
     CSignature signature;
 
     virtual uint256 GetHashForSignature() const = 0;
+
+    bool CheckSignature() const
+    {
+        CPubKey pubkey;
+        pubkey.RecoverCompact(GetHashForSignature(), signature);
+        return pubkey == pubkey2.pubkey2;
+    }
+
+    CKeyID GetOutpointKeyID() const
+    {
+        return pubkey2.GetOutpointKeyID();
+    }
 };
 
 // Message broadcasted by masternode to confirm that it is running
@@ -37,6 +74,7 @@ public:
 
     IMPLEMENT_SERIALIZE
     (
+        READWRITE(pubkey2);
         READWRITE(outpoint);
         READWRITE(signature);
         READWRITE(nBlock);
