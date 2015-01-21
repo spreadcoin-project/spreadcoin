@@ -16,6 +16,9 @@ using namespace boost;
 using namespace boost::assign;
 using namespace json_spirit;
 
+extern Value GetNetworkHashPS(int lookup, int height);
+extern int64 GetTotalSupply();
+
 int64 nWalletUnlockTime;
 static CCriticalSection cs_nWalletUnlockTime;
 
@@ -69,6 +72,8 @@ Value getinfo(const Array& params, bool fHelp)
     proxyType proxy;
     GetProxy(NET_IPV4, proxy);
 
+    boost::int64_t moneysupply = GetTotalSupply();
+
     Object obj;
     obj.push_back(Pair("version",       (int)CLIENT_VERSION));
     obj.push_back(Pair("protocolversion",(int)PROTOCOL_VERSION));
@@ -81,6 +86,8 @@ Value getinfo(const Array& params, bool fHelp)
     obj.push_back(Pair("connections",   (int)vNodes.size()));
     obj.push_back(Pair("proxy",         (proxy.first.IsValid() ? proxy.first.ToStringIPPort() : string())));
     obj.push_back(Pair("difficulty",    (double)GetDifficulty()));
+    obj.push_back(Pair("networkhashps", GetNetworkHashPS(120, -1)));
+    obj.push_back(Pair("moneysupply",   ValueFromAmount(moneysupply)));
     obj.push_back(Pair("testnet",       fTestNet));
     if (pwalletMain) {
         obj.push_back(Pair("keypoololdest", (boost::int64_t)pwalletMain->GetOldestKeyPoolTime()));

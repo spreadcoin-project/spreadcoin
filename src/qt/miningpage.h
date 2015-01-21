@@ -24,6 +24,7 @@ private:
     Ui::MiningPage *ui;
     WalletModel *model;
     std::auto_ptr<WalletModel::UnlockContext> unlockContext;
+    bool hasMiningprivkey;
 
     void restartMining(bool fGenerate);
     void timerEvent(QTimerEvent *event);

@@ -37,7 +37,7 @@ CTxMemPool mempool;
 unsigned int nTransactionsUpdated = 0;
 
 map<uint256, CBlockIndex*> mapBlockIndex;
-uint256 hashGenesisBlock("0x00000ffd590b1485b3caadc19b22e6379c733355108f107a430458cdf3407ab6"); //mainnet
+uint256 hashGenesisBlock;
 
 static CBigNum bnProofOfWorkLimit(~uint256(0) >> 20); // SpreadCoin: starting difficulty is 1 / 2^20
 CBlockIndex* pindexGenesisBlock = NULL;
@@ -1352,6 +1352,19 @@ int64 GetBlockValue(int nHeight, int64 nFees)
     return nSubsidy + nFees;
 }
 
+int64 GetTotalSupply()
+{
+    static int PrevBestHeight = 0;
+    static int64 Supply = 0;
+
+    for (int i = PrevBestHeight; i < nBestHeight; i++)
+    {
+        Supply += GetBlockValue(i, 0);
+        PrevBestHeight = nBestHeight;
+    }
+    return Supply;
+}
+
 static uint32_t invertCompact(uint32_t nBits)
 {
     uint8_t nSize = nBits >> 24;
@@ -1555,7 +1568,7 @@ bool CBlock::CheckProofOfWorkLite() const
     if (GetPoWHash() > bnTarget.getuint256() && GetHash() != hashGenesisBlock)
         return error("CheckProofOfWork() : hash doesn't match nBits");
 
-    if (nHeight <= getSecondHardforkBlock())
+    if (nHeight <= getSecondHardforkBlock() || nHeight < Checkpoints::LastCheckPoint())
         return true;
 
     if (vtx.size() < 1)
@@ -1597,7 +1610,7 @@ bool CBlock::CheckProofOfWork() const
     if (!CheckProofOfWorkLite())
         return false;
 
-    if (nHeight <= getSecondHardforkBlock())
+    if (nHeight <= getSecondHardforkBlock() || nHeight < Checkpoints::LastCheckPoint())
         return true;
 
     CBufferStream<MAX_BLOCK_SIZE> PoKData(SER_GETHASH, 0);
@@ -5351,7 +5364,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
     CReserveKey reservekey(pwallet);
 
     try { loop {
-       while (vNodes.empty())
+       while (vNodes.empty() && !fTestNet)
             MilliSleep(1000);
 
         //
@@ -5446,7 +5459,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
 
             // Check for stop or if block needs to be rebuilt
             boost::this_thread::interruption_point();
-            if (vNodes.empty())
+            if (vNodes.empty() && !fTestNet)
                 break;
             if (pblock->nNonce >= 0xffff0000)
                 break;

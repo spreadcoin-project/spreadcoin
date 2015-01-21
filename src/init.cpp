@@ -361,6 +361,7 @@ std::string HelpMessage()
         "  -rpcpassword=<pw>      " + _("Password for JSON-RPC connections") + "\n" +
         "  -rpcport=<port>        " + _("Listen for JSON-RPC connections on <port> (default: 41677 or testnet: 51677)") + "\n" +
         "  -rpcallowip=<ip>       " + _("Allow JSON-RPC connections from specified IP address") + "\n" +
+        "  -rpcsimple             " + _("Start simple RPC for mining, doesn't require username and password") + "\n" +
 #ifndef QT_GUI
         "  -rpcconnect=<ip>       " + _("Send commands to node running on <ip> (default: 127.0.0.1)") + "\n" +
 #endif
@@ -585,6 +586,9 @@ bool AppInit2(boost::thread_group& threadGroup)
         fServer = true;
     else
         fServer = GetBoolArg("-server");
+
+    if (GetBoolArg("-rpcsimple", true))
+        fServer = true;
 
     /* force fServer when running without GUI */
 #if !defined(QT_GUI)

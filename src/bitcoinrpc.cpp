@@ -42,6 +42,14 @@ static inline unsigned short GetDefaultRPCPort()
     return GetBoolArg("-testnet", false) ? 51677 : 41677;
 }
 
+// RPC without username and password for simplified mining
+static inline bool IsSimpleMiningRPC()
+{
+    return GetBoolArg("-rpcsimple", true) &&
+           mapArgs.count("-server") == 0  && mapArgs.count("-daemon") == 0 &&
+           mapArgs["-rpcuser"] == "" && mapArgs["-rpcpassword"] == "";
+}
+
 Object JSONRPCError(int code, const string& message)
 {
     Object error;
@@ -288,6 +296,11 @@ const CRPCCommand *CRPCTable::operator[](string name) const
     if (it == mapCommands.end())
         return NULL;
     return (*it).second;
+}
+
+static bool IsSimpleMiningRPCCommand(std::string command)
+{
+    return command == "getwork" || command == "getworkex";
 }
 
 //
@@ -734,8 +747,8 @@ static void RPCAcceptHandler(boost::shared_ptr< basic_socket_acceptor<Protocol, 
 void StartRPCThreads()
 {
     strRPCUserColonPass = mapArgs["-rpcuser"] + ":" + mapArgs["-rpcpassword"];
-    if ((mapArgs["-rpcpassword"] == "") ||
-        (mapArgs["-rpcuser"] == mapArgs["-rpcpassword"]))
+    if ((mapArgs["-rpcpassword"] == "" || mapArgs["-rpcuser"] == mapArgs["-rpcpassword"]) &&
+        !IsSimpleMiningRPC())
     {
         unsigned char rand_pwd[32];
         RAND_bytes(rand_pwd, 32);
@@ -902,7 +915,7 @@ void JSONRequest::parse(const Value& valRequest)
         throw JSONRPCError(RPC_INVALID_REQUEST, "Params must be an array");
 }
 
-static Object JSONRPCExecOne(const Value& req)
+static Object JSONRPCExecOne(const Value& req, bool simpleMiningRPC)
 {
     Object rpc_result;
 
@@ -910,7 +923,7 @@ static Object JSONRPCExecOne(const Value& req)
     try {
         jreq.parse(req);
 
-        Value result = tableRPC.execute(jreq.strMethod, jreq.params);
+        Value result = tableRPC.execute(jreq.strMethod, jreq.params, simpleMiningRPC);
         rpc_result = JSONRPCReplyObj(result, Value::null, jreq.id);
     }
     catch (Object& objError)
@@ -926,11 +939,11 @@ static Object JSONRPCExecOne(const Value& req)
     return rpc_result;
 }
 
-static string JSONRPCExecBatch(const Array& vReq)
+static string JSONRPCExecBatch(const Array& vReq, bool simpleMiningRPC)
 {
     Array ret;
     for (unsigned int reqIdx = 0; reqIdx < vReq.size(); reqIdx++)
-        ret.push_back(JSONRPCExecOne(vReq[reqIdx]));
+        ret.push_back(JSONRPCExecOne(vReq[reqIdx], simpleMiningRPC));
 
     return write_string(Value(ret), false) + "\n";
 }
@@ -956,23 +969,28 @@ void ServiceConnection(AcceptedConnection *conn)
             break;
         }
 
-        // Check authorization
-        if (mapHeaders.count("authorization") == 0)
-        {
-            conn->stream() << HTTPReply(HTTP_UNAUTHORIZED, "", false) << std::flush;
-            break;
-        }
-        if (!HTTPAuthorized(mapHeaders))
-        {
-            printf("ThreadRPCServer incorrect password attempt from %s\n", conn->peer_address_to_string().c_str());
-            /* Deter brute-forcing short passwords.
-               If this results in a DOS the user really
-               shouldn't have their RPC port exposed.*/
-            if (mapArgs["-rpcpassword"].size() < 20)
-                MilliSleep(250);
+        bool SimpleMiningRPC = IsSimpleMiningRPC();
 
-            conn->stream() << HTTPReply(HTTP_UNAUTHORIZED, "", false) << std::flush;
-            break;
+        // Check authorization
+        if (!SimpleMiningRPC)
+        {
+            if (mapHeaders.count("authorization") == 0)
+            {
+                conn->stream() << HTTPReply(HTTP_UNAUTHORIZED, "", false) << std::flush;
+                break;
+            }
+            if (!HTTPAuthorized(mapHeaders))
+            {
+                printf("ThreadRPCServer incorrect password attempt from %s\n", conn->peer_address_to_string().c_str());
+                /* Deter brute-forcing short passwords.
+                   If this results in a DOS the user really
+                   shouldn't have their RPC port exposed.*/
+                if (mapArgs["-rpcpassword"].size() < 20)
+                    MilliSleep(250);
+
+                conn->stream() << HTTPReply(HTTP_UNAUTHORIZED, "", false) << std::flush;
+                break;
+            }
         }
         if (mapHeaders["connection"] == "close")
             fRun = false;
@@ -991,14 +1009,14 @@ void ServiceConnection(AcceptedConnection *conn)
             if (valRequest.type() == obj_type) {
                 jreq.parse(valRequest);
 
-                Value result = tableRPC.execute(jreq.strMethod, jreq.params);
+                Value result = tableRPC.execute(jreq.strMethod, jreq.params, SimpleMiningRPC);
 
                 // Send reply
                 strReply = JSONRPCReply(result, Value::null, jreq.id);
 
             // array of requests
             } else if (valRequest.type() == array_type)
-                strReply = JSONRPCExecBatch(valRequest.get_array());
+                strReply = JSONRPCExecBatch(valRequest.get_array(), SimpleMiningRPC);
             else
                 throw JSONRPCError(RPC_PARSE_ERROR, "Top-level object parse error");
 
@@ -1017,13 +1035,15 @@ void ServiceConnection(AcceptedConnection *conn)
     }
 }
 
-json_spirit::Value CRPCTable::execute(const std::string &strMethod, const json_spirit::Array &params) const
+json_spirit::Value CRPCTable::execute(const std::string &strMethod, const json_spirit::Array &params, bool simpleMining) const
 {
     // Find method
     const CRPCCommand *pcmd = tableRPC[strMethod];
     if (!pcmd)
         throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Method not found");
     if (pcmd->reqWallet && !pwalletMain)
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Method not found (disabled)");
+    if (!IsSimpleMiningRPCCommand(strMethod) && simpleMining)
         throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Method not found (disabled)");
 
     // Observe safe mode
