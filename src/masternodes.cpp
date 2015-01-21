@@ -4,6 +4,7 @@
 
 #include "txdb.h"
 #include "masternodes.h"
+#include "init.h"
 
 static int64_t GetMontoneTimeMs()
 {
@@ -156,14 +157,14 @@ double CMasterNode::GetScore() const
     return score;
 }
 
-bool MN_GetKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t& amount, CCoinsViewCache* pCoins)
+bool MN_GetKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t& amount, CCoinsViewCache* pCoins, bool AllowUnconfirmed)
 {
     int age;
     CTxOut out;
     if(!GetOutput(outpoint, pCoins, age, out))
         return false;
 
-    if (age < g_MasternodeMinConfirmations)
+    if (!AllowUnconfirmed && age < g_MasternodeMinConfirmations)
         return false;
 
     if (out.IsNull() || out.nValue < g_MinMasternodeAmount)
@@ -242,7 +243,7 @@ void MN_ProcessBlocks()
         for (COutPoint outpoint : g_OurMasterNodes)
         {
             CMasterNode& mn = g_MasterNodes[outpoint];
-            assert (mn.privkey.IsValid());
+            assert (mn.secret.privkey.IsValid());
 
             std::vector<int> vblocks = mn.GetExistenceBlocks();
             if (std::find(vblocks.begin(), vblocks.end(), pBlock->nHeight) == vblocks.end())
@@ -252,12 +253,12 @@ void MN_ProcessBlocks()
                 continue;
 
             CMasterNodeExistenceMsg mnem;
-            mnem.pubkey2.pubkey2 = mn.privkey.GetPubKey();
-            mnem.pubkey2.signature = mn.privkey.Sign(mnem.pubkey2.pubkey2.GetHash());
+            mnem.pubkey2.pubkey2 = mn.secret.privkey.GetPubKey();
+            mnem.pubkey2.signature = mn.secret.signature;
             mnem.outpoint = mn.outpoint;
             mnem.hashBlock = pBlock->GetBlockHash();
             mnem.nBlock = pBlock->nHeight;
-            mnem.signature = mn.privkey.Sign(mnem.GetHashForSignature());
+            mnem.signature = mn.secret.privkey.Sign(mnem.GetHashForSignature());
 
             MN_ProcessExistenceMsg(NULL, mnem);
         }
@@ -317,14 +318,19 @@ void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem)
     }
 }
 
-bool MN_Start(const COutPoint& outpoint, const CKey& key)
+bool MN_Start(const COutPoint& outpoint, const CMasterNodeSecret& secret)
 {
     CMasterNode* pmn = getMasterNode(outpoint);
     if (!pmn)
         return false;
 
+    {
+        LOCK(pwalletMain->cs_wallet);
+        pwalletMain->LockCoin(outpoint);
+    }
+
     pmn->my = true;
-    pmn->privkey = key;
+    pmn->secret = secret;
     g_OurMasterNodes.insert(outpoint);
     return true;
 }
@@ -335,8 +341,13 @@ bool MN_Stop(const COutPoint& outpoint)
     if (!pmn)
         return false;
 
-    pmn->privkey = CKey();
+    pmn->secret.privkey = CKey();
     g_OurMasterNodes.erase(outpoint);
+
+    {
+        LOCK(pwalletMain->cs_wallet);
+        pwalletMain->UnlockCoin(outpoint);
+    }
     return true;
 }
 
@@ -499,4 +510,14 @@ void MN_GetVotes(CBlockIndex* pindex, boost::unordered_map<COutPoint, int> vvote
 void MN_LoadElections()
 {
     g_ElectedMasternodes.ApplyMany(FindBlockByHeight(getThirdHardforkBlock() + 1));
+}
+
+CMasterNodeSecret::CMasterNodeSecret(CKey privkey)
+{
+    CKey privkey2;
+    privkey2.MakeNewKey();
+    CPubKey pubkey2 = privkey2.GetPubKey();
+
+    this->privkey = privkey2;
+    this->signature = privkey.Sign(pubkey2.GetHash());
 }

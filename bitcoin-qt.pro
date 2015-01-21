@@ -334,7 +334,8 @@ SOURCES += src/qt/bitcoin.cpp \
     src/qt/miningpage.cpp \
     src/masternodes.cpp \
     src/qt/masternodepage.cpp \
-    src/elected_masternodes.cpp
+    src/elected_masternodes.cpp \
+    src/rpcmasternode.cpp
 
 RESOURCES += src/qt/bitcoin.qrc
 

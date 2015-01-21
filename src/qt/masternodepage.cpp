@@ -136,7 +136,7 @@ void MasternodePage::updateMasternodes()
         if (mn.my)
         {
             MasternodeCheckbox* pButton = new MasternodeCheckbox(mn.keyid, mn.outpoint);
-            pButton->setChecked(mn.privkey.IsValid());
+            pButton->setChecked(mn.secret.privkey.IsValid());
             connect(pButton, SIGNAL(switchMasternode(const CKeyID&, const COutPoint&, bool)), this, SLOT(switchMasternode(const CKeyID&, const COutPoint&, bool)));
 
             QWidget *pWidget = new QWidget();
@@ -161,7 +161,10 @@ void MasternodePage::switchMasternode(const CKeyID &keyid, const COutPoint &outp
     {
         CKey key;
         WalletModel::UnlockContext context(model->requestUnlock());
-        pwalletMain->GetKey(keyid, key);
-        MN_Start(outpoint, key);
+        {
+            LOCK(pwalletMain->cs_wallet);
+            pwalletMain->GetKey(keyid, key);
+        }
+        MN_Start(outpoint, CMasterNodeSecret(key));
     }
 }

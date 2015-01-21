@@ -211,4 +211,8 @@ extern json_spirit::Value gettxoutsetinfo(const json_spirit::Array& params, bool
 extern json_spirit::Value gettxout(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value verifychain(const json_spirit::Array& params, bool fHelp);
 
+extern json_spirit::Value mnsecret(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value mnstart(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value mnstop(const json_spirit::Array& params, bool fHelp);
+
 #endif

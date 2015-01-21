@@ -11,6 +11,18 @@ static const int g_MasternodesElectionPeriod = 50;
 static const int g_MasternodeRewardPercentage = 30;
 static const int g_MaxMasternodes = 1500;
 
+class CMasterNodeSecret
+{
+public:
+    CKey privkey;
+    CSignature signature;
+
+    CMasterNodeSecret()
+    {}
+
+    CMasterNodeSecret(CKey privkey);
+};
+
 // Base for masternode messages
 class CMasterNodePubkey2
 {
@@ -112,7 +124,7 @@ public:
     bool my = false;
 
     // Only for our masternodes
-    CKey privkey;
+    CMasterNodeSecret secret;
 
     // Score based on how fast this node broadcasts its responces.
     // Miners use this value to elect new masternodes or remove old ones.
@@ -134,11 +146,11 @@ extern boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
 extern CElectedMasternodes g_ElectedMasternodes;
 
 bool MN_IsAcceptableMasternodeInput(const COutPoint& outpoint, CCoinsViewCache *pCoins);
-bool MN_GetKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t& amount, CCoinsViewCache* pCoins);
+bool MN_GetKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t& amount, CCoinsViewCache* pCoins, bool AllowUnconfirmed = false);
 
 // Control our masternodes
 bool MN_SetMy(const COutPoint& outpoint, bool my);
-bool MN_Start(const COutPoint& outpoint, const CKey& key);
+bool MN_Start(const COutPoint& outpoint, const CMasterNodeSecret &secret);
 bool MN_Stop(const COutPoint& outpoint);
 
 // Process network events
