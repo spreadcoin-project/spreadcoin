@@ -36,6 +36,11 @@ bool MN_Start(const COutPoint& outpoint, const CMasterNodeSecret& secret)
         pwalletMain->LockCoin(outpoint);
     }
 
+    CPubKey pubkey;
+    pubkey.RecoverCompact(secret.privkey.GetPubKey().GetHash(), secret.signature);
+    if (pubkey.GetID() != pmn->keyid)
+        return false;
+
     pmn->my = true;
     pmn->secret = secret;
     g_OurMasterNodes.insert(outpoint);

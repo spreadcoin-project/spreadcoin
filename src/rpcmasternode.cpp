@@ -70,9 +70,10 @@ Value mnstart(const Array& params, bool fHelp)
     CBigNum signature;
     signature.SetHex(params2[2]);
     auto vec = signature.getvch();
+    std::reverse(vec.begin(), vec.end());
 
     CMasterNodeSecret mnsecret;
-    std::copy(mnsecret.signature.begin(), mnsecret.signature.end(), vec.begin());
+    std::copy(vec.begin(), vec.end(), mnsecret.signature.begin());
 
     CBitcoinSecret secret;
     secret.SetString(params2[3]);
