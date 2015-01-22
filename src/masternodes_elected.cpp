@@ -1,8 +1,9 @@
-#include "elected_masternodes.h"
 #include "masternodes.h"
 
 static const unsigned int g_MasternodesStartPayments = 6;
 static const unsigned int g_MasternodesStopPayments = 3;
+
+CElectedMasternodes g_ElectedMasternodes;
 
 bool CElectedMasternodes::NextPayee(const COutPoint& PrevPayee, CCoinsViewCache *pCoins, CKeyID &keyid, COutPoint& outpoint)
 {
@@ -114,4 +115,9 @@ void CElectedMasternodes::ApplyMany(CBlockIndex* pindex)
 bool CElectedMasternodes::IsElected(const COutPoint& outpoint)
 {
     return masternodes.count(outpoint) != 0;
+}
+
+void MN_LoadElections()
+{
+    g_ElectedMasternodes.ApplyMany(FindBlockByHeight(getThirdHardforkBlock() + 1));
 }

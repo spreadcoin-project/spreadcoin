@@ -17,3 +17,8 @@ public:
     void ApplyBlock(CBlockIndex* pindex, bool connect);
     void ApplyMany(CBlockIndex* pindex);
 };
+
+extern CElectedMasternodes g_ElectedMasternodes;
+
+// Initialize elected masternodes after loading blockchain
+void MN_LoadElections();

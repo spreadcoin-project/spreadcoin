@@ -244,7 +244,9 @@ HEADERS += src/qt/bitcoingui.h \
     src/qt/miningpage.h \
     src/masternodes.h \
     src/qt/masternodepage.h \
-    src/elected_masternodes.h
+    src/masternode_messages.h \
+    src/masternodes_elected.h \
+    src/masternode_my.h
 
 SOURCES += src/qt/bitcoin.cpp \
     src/qt/bitcoingui.cpp \
@@ -334,8 +336,10 @@ SOURCES += src/qt/bitcoin.cpp \
     src/qt/miningpage.cpp \
     src/masternodes.cpp \
     src/qt/masternodepage.cpp \
-    src/elected_masternodes.cpp \
-    src/rpcmasternode.cpp
+    src/rpcmasternode.cpp \
+    src/masternode_messages.cpp \
+    src/masternodes_elected.cpp \
+    src/masternode_my.cpp
 
 RESOURCES += src/qt/bitcoin.qrc
 

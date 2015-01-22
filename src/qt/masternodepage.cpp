@@ -104,9 +104,12 @@ void MasternodePage::updateMasternodes()
         paymentIn[curPayment] = i + 1;
     }
 
+    MN_Cleanup();
+
     for (const std::pair<COutPoint, CMasterNode>& pair : g_MasterNodes)
     {
         const CMasterNode& mn = pair.second;
+
         bool elected = g_ElectedMasternodes.IsElected(mn.outpoint);
         int votes = 0;
         auto iter = vvotes[!elected].find(mn.outpoint);

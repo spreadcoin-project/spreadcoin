@@ -1,10 +1,8 @@
 #include <boost/chrono.hpp>
-#include <boost/unordered_set.hpp>
 #include <boost/algorithm/clamp.hpp>
 
 #include "txdb.h"
 #include "masternodes.h"
-#include "init.h"
 
 static int64_t GetMontoneTimeMs()
 {
@@ -27,8 +25,6 @@ static const double g_MaxScore = 100.0;
 static int32_t g_InitialBlock = 0;
 
 boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
-static boost::unordered_set<COutPoint> g_OurMasterNodes;
-CElectedMasternodes g_ElectedMasternodes;
 
 bool MN_IsAcceptableMasternodeInput(const COutPoint& outpoint, CCoinsViewCache* pCoins)
 {
@@ -107,7 +103,7 @@ void CMasterNode::UpdateScore() const
 {
     if (misbehaving)
     {
-        score = 99999999999.0;
+        score = 99*g_MaxScore;
         return;
     }
 
@@ -179,7 +175,7 @@ bool MN_GetKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t& am
     return true;
 }
 
-static CMasterNode* getMasterNode(const COutPoint& outpoint)
+CMasterNode* MN_Get(const COutPoint& outpoint)
 {
     auto iter = g_MasterNodes.find(outpoint);
     if (iter != g_MasterNodes.end())
@@ -201,18 +197,15 @@ static CMasterNode* getMasterNode(const COutPoint& outpoint)
     }
 }
 
-uint256 CMasterNodeExistenceMsg::GetHashForSignature() const
+void MN_Cleanup()
 {
-    CHashWriter hasher(SER_GETHASH, 0);
-    hasher << outpoint << nBlock << hashBlock;
-    return hasher.GetHash();
-}
-
-uint256 CMasterNodeExistenceMsg::GetHash() const
-{
-    CHashWriter hasher(SER_GETHASH, 0);
-    hasher << outpoint << nBlock << hashBlock << signature;
-    return hasher.GetHash();
+    boost::unordered_map<COutPoint, CMasterNode> masternodes;
+    for (auto& pair : g_MasterNodes)
+    {
+        if (MN_IsAcceptableMasternodeInput(pair.first, nullptr))
+            masternodes[pair.first] = std::move(pair.second);
+    }
+    g_MasterNodes = masternodes;
 }
 
 void MN_ProcessBlocks()
@@ -224,44 +217,14 @@ void MN_ProcessBlocks()
         g_InitialBlock = nBestHeight;
 
     if (nBestHeight % 10 == 0)
-    {
-        boost::unordered_map<COutPoint, CMasterNode> masternodes;
-        for (auto& pair : g_MasterNodes)
-        {
-            if (MN_IsAcceptableMasternodeInput(pair.first, nullptr))
-                masternodes[pair.first] = std::move(pair.second);
-        }
-        g_MasterNodes = masternodes;
-    }
+        MN_Cleanup();
 
     for (CBlockIndex* pBlock = pindexBest;
          pBlock->nHeight > g_InitialBlock && pBlock->nReceiveTime == 0;
          pBlock = pBlock->pprev)
     {
         pBlock->nReceiveTime = GetMontoneTimeMs();
-
-        for (COutPoint outpoint : g_OurMasterNodes)
-        {
-            CMasterNode& mn = g_MasterNodes[outpoint];
-            assert (mn.secret.privkey.IsValid());
-
-            std::vector<int> vblocks = mn.GetExistenceBlocks();
-            if (std::find(vblocks.begin(), vblocks.end(), pBlock->nHeight) == vblocks.end())
-                continue;
-
-            if (!MN_IsAcceptableMasternodeInput(mn.outpoint, nullptr))
-                continue;
-
-            CMasterNodeExistenceMsg mnem;
-            mnem.pubkey2.pubkey2 = mn.secret.privkey.GetPubKey();
-            mnem.pubkey2.signature = mn.secret.signature;
-            mnem.outpoint = mn.outpoint;
-            mnem.hashBlock = pBlock->GetBlockHash();
-            mnem.nBlock = pBlock->nHeight;
-            mnem.signature = mn.secret.privkey.Sign(mnem.GetHashForSignature());
-
-            MN_ProcessExistenceMsg(NULL, mnem);
-        }
+        MN_MyProcessBlock(pBlock);
     }
 }
 
@@ -275,7 +238,7 @@ static int MN_ProcessExistenceMsg_Impl(const CMasterNodeExistenceMsg& mnem)
     if (mnem.nBlock < nBestHeight- 50)
         return 0;
 
-    CMasterNode* pmn = getMasterNode(mnem.outpoint);
+    CMasterNode* pmn = MN_Get(mnem.outpoint);
     if (!pmn)
         return 20;
 
@@ -317,50 +280,6 @@ void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem)
         }
     }
 }
-
-bool MN_Start(const COutPoint& outpoint, const CMasterNodeSecret& secret)
-{
-    CMasterNode* pmn = getMasterNode(outpoint);
-    if (!pmn)
-        return false;
-
-    {
-        LOCK(pwalletMain->cs_wallet);
-        pwalletMain->LockCoin(outpoint);
-    }
-
-    pmn->my = true;
-    pmn->secret = secret;
-    g_OurMasterNodes.insert(outpoint);
-    return true;
-}
-
-bool MN_Stop(const COutPoint& outpoint)
-{
-    CMasterNode* pmn = getMasterNode(outpoint);
-    if (!pmn)
-        return false;
-
-    pmn->secret.privkey = CKey();
-    g_OurMasterNodes.erase(outpoint);
-
-    {
-        LOCK(pwalletMain->cs_wallet);
-        pwalletMain->UnlockCoin(outpoint);
-    }
-    return true;
-}
-
-bool MN_SetMy(const COutPoint& outpoint, bool my)
-{
-    CMasterNode* pmn = getMasterNode(outpoint);
-    if (!pmn)
-        return false;
-
-    pmn->my = my;
-    return true;
-}
-
 
 template<typename T, typename TComp>
 inline void set_differences(const std::vector<T>& A, const std::vector<T>& B, std::vector<T>& resultA, std::vector<T>& resultB, TComp comp)
@@ -418,12 +337,11 @@ void MN_CastVotes(std::vector<COutPoint> vvotes[], CCoinsViewCache &coins)
     std::vector<const CMasterNode*> velected;
     std::vector<const CMasterNode*> vknown;
 
+    MN_Cleanup();
     for (const auto& pair : g_MasterNodes)
     {
         const CMasterNode& mn = pair.second;
 
-        if (!MN_IsAcceptableMasternodeInput(mn.outpoint, &coins))
-            continue;
         if (mn.GetScore() > g_MaxScore)
             continue;
 
@@ -432,7 +350,7 @@ void MN_CastVotes(std::vector<COutPoint> vvotes[], CCoinsViewCache &coins)
 
     for (const COutPoint& outpoint : g_ElectedMasternodes.masternodes)
     {
-        velected.push_back(getMasterNode(outpoint));
+        velected.push_back(MN_Get(outpoint));
     }
 
     std::sort(vknown.begin(), vknown.end(), compareMasternodesByScore);
@@ -502,22 +420,7 @@ void MN_GetVotes(CBlockIndex* pindex, boost::unordered_map<COutPoint, int> vvote
         for (const auto& pair : vvotes[i])
         {
             // Add to known
-            getMasterNode(pair.first);
+            MN_Get(pair.first);
         }
     }
-}
-
-void MN_LoadElections()
-{
-    g_ElectedMasternodes.ApplyMany(FindBlockByHeight(getThirdHardforkBlock() + 1));
-}
-
-CMasterNodeSecret::CMasterNodeSecret(CKey privkey)
-{
-    CKey privkey2;
-    privkey2.MakeNewKey();
-    CPubKey pubkey2 = privkey2.GetPubKey();
-
-    this->privkey = privkey2;
-    this->signature = privkey.Sign(pubkey2.GetHash());
 }

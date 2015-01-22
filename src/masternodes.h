@@ -3,96 +3,15 @@
 
 #include <boost/unordered_map.hpp>
 #include "main.h"
-#include "elected_masternodes.h"
+#include "masternodes_elected.h"
+#include "masternode_messages.h"
+#include "masternode_my.h"
 
 static const int64_t g_MinMasternodeAmount = 1000*COIN;
 static const int g_MaxMasternodeVotes = 10;
 static const int g_MasternodesElectionPeriod = 50;
 static const int g_MasternodeRewardPercentage = 30;
 static const int g_MaxMasternodes = 1500;
-
-class CMasterNodeSecret
-{
-public:
-    CKey privkey;
-    CSignature signature;
-
-    CMasterNodeSecret()
-    {}
-
-    CMasterNodeSecret(CKey privkey);
-};
-
-// Base for masternode messages
-class CMasterNodePubkey2
-{
-public:
-    CPubKey pubkey2;
-
-    // Signed with outpoint key.
-    CSignature signature;
-
-    CKeyID GetOutpointKeyID() const
-    {
-        CPubKey pubkey;
-        pubkey.RecoverCompact(pubkey2.GetHash(), signature);
-        return pubkey.GetID();
-    }
-
-    IMPLEMENT_SERIALIZE
-    (
-        READWRITE(pubkey2);
-        READWRITE(signature);
-    )
-};
-
-// Base for masternode messages
-class CMasterNodeBaseMsg
-{
-public:
-    CMasterNodePubkey2 pubkey2;
-
-    // Masternode indentifier
-    COutPoint outpoint;
-
-    // Signed with pubkey2.
-    CSignature signature;
-
-    virtual uint256 GetHashForSignature() const = 0;
-
-    bool CheckSignature() const
-    {
-        CPubKey pubkey;
-        pubkey.RecoverCompact(GetHashForSignature(), signature);
-        return pubkey == pubkey2.pubkey2;
-    }
-
-    CKeyID GetOutpointKeyID() const
-    {
-        return pubkey2.GetOutpointKeyID();
-    }
-};
-
-// Message broadcasted by masternode to confirm that it is running
-class CMasterNodeExistenceMsg : public CMasterNodeBaseMsg
-{
-public:
-    // prove that this message is recent
-    int32_t nBlock;
-    uint256 hashBlock;
-
-    uint256 GetHashForSignature() const;
-    uint256 GetHash() const;
-
-    IMPLEMENT_SERIALIZE
-    (
-        READWRITE(pubkey2);
-        READWRITE(outpoint);
-        READWRITE(signature);
-        READWRITE(nBlock);
-        READWRITE(hashBlock);
-    )
-};
 
 class CMasterNode
 {
@@ -116,7 +35,6 @@ class CMasterNode
     void UpdateScore() const;
 
 public:
-
     COutPoint outpoint;
     CKeyID    keyid;
     uint64_t  amount;
@@ -143,26 +61,20 @@ public:
 // All known masternodes, this may include outdated and stopped masternodes as well as not yet elected.
 extern boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
 
-extern CElectedMasternodes g_ElectedMasternodes;
+CMasterNode* MN_Get(const COutPoint& outpoint);
 
 bool MN_IsAcceptableMasternodeInput(const COutPoint& outpoint, CCoinsViewCache *pCoins);
 bool MN_GetKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t& amount, CCoinsViewCache* pCoins, bool AllowUnconfirmed = false);
 
-// Control our masternodes
-bool MN_SetMy(const COutPoint& outpoint, bool my);
-bool MN_Start(const COutPoint& outpoint, const CMasterNodeSecret &secret);
-bool MN_Stop(const COutPoint& outpoint);
+void MN_Cleanup();
 
 // Process network events
 void MN_ProcessBlocks();
-void MN_ProcessInstantTx(const CTransaction& tx);
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
 
 // Functions necessary for mining
 void MN_CastVotes(std::vector<COutPoint> vvotes[2], CCoinsViewCache& coins);
 
-// Initialize elected masternodes after loading blockchain
-void MN_LoadElections();
 
 inline int64_t MN_GetReward(int64_t BlockValue)
 {
