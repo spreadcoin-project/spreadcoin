@@ -1160,7 +1160,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
             // Template matching opcodes:
             if (opcode2 == OP_PUBKEYS)
             {
-                while (vch1.size() >= 33 && vch1.size() <= 120)
+                while (vch1.size() == sizeof(uint160))
                 {
                     vSolutionsRet.push_back(vch1);
                     if (!script1.GetOp2(pc1, opcode1, &vch1))
@@ -1225,8 +1225,7 @@ bool SignN(const vector<valtype>& multisigdata, const CKeyStore& keystore, uint2
     int nRequired = multisigdata.front()[0];
     for (unsigned int i = 1; i < multisigdata.size()-1 && nSigned < nRequired; i++)
     {
-        const valtype& pubkey = multisigdata[i];
-        CKeyID keyID = CPubKey(pubkey).GetID();
+        CKeyID keyID = CKeyID(uint160(multisigdata[i]));
         if (Sign1(keyID, keystore, hash, nHashType, scriptSigRet))
             ++nSigned;
     }
@@ -1311,7 +1310,7 @@ unsigned int HaveKeys(const vector<valtype>& pubkeys, const CKeyStore& keystore)
     unsigned int nResult = 0;
     BOOST_FOREACH(const valtype& pubkey, pubkeys)
     {
-        CKeyID keyID = CPubKey(pubkey).GetID();
+        CKeyID keyID = CKeyID(uint160(pubkey));
         if (keystore.HaveKey(keyID))
             ++nResult;
     }
@@ -1770,12 +1769,12 @@ void CScript::SetDestination(const CTxDestination& dest)
     boost::apply_visitor(CScriptVisitor(this), dest);
 }
 
-void CScript::SetMultisig(int nRequired, const std::vector<CPubKey>& keys)
+void CScript::SetMultisig(int nRequired, const std::vector<CKeyID>& keys)
 {
     this->clear();
 
     *this << EncodeOP_N(nRequired);
-    BOOST_FOREACH(const CPubKey& key, keys)
+    BOOST_FOREACH(const CKeyID& key, keys)
         *this << key;
     *this << EncodeOP_N(keys.size()) << OP_CHECKMULTISIG;
 }
