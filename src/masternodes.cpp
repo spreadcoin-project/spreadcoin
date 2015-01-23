@@ -18,8 +18,11 @@ static const int g_MonitoringPeriodMin = 30;
 
 // If masternode doesn't respond to some message we assume that it has responded in this amount of time.
 static const double g_PenaltyTime = 500.0;
-
 static const double g_MaxScore = 100.0;
+
+// Instant transactions
+static const int g_MaxInstantTxInputs = 15;
+static const int g_InstantTxFeePerInput = COIN/1000;
 
 // Blockchain length at startup after sync. We don't know anythyng about how well masternodes were behaving before this block.
 static int32_t g_InitialBlock = 0;
@@ -226,6 +229,20 @@ void MN_ProcessBlocks()
         pBlock->nReceiveTime = GetMontoneTimeMs();
         MN_MyProcessBlock(pBlock);
     }
+}
+
+static bool CanBeInstantTx(const CTransaction& tx)
+{
+    if (tx.vin.size() > g_MaxInstantTxInputs)
+        return false;
+
+    tx.GetValueIn()
+    tx.vin.size() <
+}
+
+void MN_ProcessTx(const CTransaction& tx)
+{
+
 }
 
 static int MN_ProcessExistenceMsg_Impl(const CMasterNodeExistenceMsg& mnem)

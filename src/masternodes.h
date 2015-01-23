@@ -70,6 +70,7 @@ void MN_Cleanup();
 
 // Process network events
 void MN_ProcessBlocks();
+void MN_ProcessTx(const CTransaction& tx);
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
 
 // Functions necessary for mining
