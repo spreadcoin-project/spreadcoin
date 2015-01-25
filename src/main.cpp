@@ -40,7 +40,7 @@ unsigned int nTransactionsUpdated = 0;
 map<uint256, CBlockIndex*> mapBlockIndex;
 uint256 hashGenesisBlock("0x00000ffd590b1485b3caadc19b22e6379c733355108f107a430458cdf3407ab6"); //mainnet
 
-static CBigNum bnProofOfWorkLimit(~uint256(0) >> 20); // SpreadCoin: starting difficulty is 1 / 2^20
+static CBigNum bnProofOfWorkLimit(~uint256(0) >> 10); // SpreadCoin: starting difficulty is 1 / 2^20
 CBlockIndex* pindexGenesisBlock = NULL;
 int nBestHeight = -1;
 uint256 nBestChainWork = 0;
@@ -107,7 +107,7 @@ unsigned int getSecondHardforkBlock()
 
 unsigned int getThirdHardforkBlock()
 {
-    return fTestNet? 2138 : 99999999;
+    return fTestNet? 700 : 99999999;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -681,7 +681,7 @@ void CTxMemPool::pruneSpent(const uint256 &hashTx, CCoins &coins)
     }
 }
 
-bool CTxMemPool::accept(CValidationState &state, CTransaction &tx, bool fCheckInputs, bool fLimitFree,
+bool CTxMemPool::accept(CValidationState &state, CTransaction &tx, bool fCheckInputs, bool fLimitFree, bool fTryInstantTx,
                         bool* pfMissingInputs)
 {
     if (pfMissingInputs)
@@ -823,6 +823,9 @@ bool CTxMemPool::accept(CValidationState &state, CTransaction &tx, bool fCheckIn
         {
             return error("CTxMemPool::accept() : ConnectInputs failed %s", hash.ToString().c_str());
         }
+
+        if (fTryInstantTx)
+            MN_MyProcessTx(tx, nFees);
     }
 
     // Store transaction in memory
@@ -1022,10 +1025,10 @@ bool CTxMemPool::acceptable(CValidationState &state, CTransaction &tx, bool fChe
     return true;
 }
 
-bool CTransaction::AcceptToMemoryPool(CValidationState &state, bool fCheckInputs, bool fLimitFree, bool* pfMissingInputs)
+bool CTransaction::AcceptToMemoryPool(CValidationState &state, bool fCheckInputs, bool fLimitFree, bool fTryInstantTx, bool* pfMissingInputs)
 {
     try {
-        return mempool.accept(state, *this, fCheckInputs, fLimitFree, pfMissingInputs);
+        return mempool.accept(state, *this, fCheckInputs, fLimitFree, fTryInstantTx, pfMissingInputs);
     } catch(std::runtime_error &e) {
         return state.Abort(_("System error: ") + e.what());
     }
@@ -1222,10 +1225,10 @@ int CMerkleTx::GetBlocksToMaturity() const
 }
 
 
-bool CMerkleTx::AcceptToMemoryPool(bool fCheckInputs, bool fLimitFree)
+bool CMerkleTx::AcceptToMemoryPool(bool fCheckInputs, bool fLimitFree, bool fTryInstantTx)
 {
     CValidationState state;
-    return CTransaction::AcceptToMemoryPool(state, fCheckInputs, fLimitFree);
+    return CTransaction::AcceptToMemoryPool(state, fCheckInputs, fLimitFree, fTryInstantTx, NULL);
 }
 
 bool CMerkleTx::IsAcceptable(bool fCheckInputs, bool fLimitFree)
@@ -1245,10 +1248,10 @@ bool CWalletTx::AcceptWalletTransaction(bool fCheckInputs)
             {
                 uint256 hash = tx.GetHash();
                 if (!mempool.exists(hash) && pcoinsTip->HaveCoins(hash))
-                    tx.AcceptToMemoryPool(fCheckInputs, false);
+                    tx.AcceptToMemoryPool(fCheckInputs, false, false);
             }
         }
-        return AcceptToMemoryPool(fCheckInputs, false);
+        return AcceptToMemoryPool(fCheckInputs, false, false);
     }
     return false;
 }
@@ -1590,7 +1593,7 @@ uint256 CBlock::HashPoKData(const CBufferStream<MAX_BLOCK_SIZE>& PoKData)
     SHA256_Init(&ctx);
 
     // Hash everything twice to ensure that pool can not hide part of the block from miners by supplying them hash state.
-    for (int i = 0; i < (fTestNet? 1 : 2); i++)
+    for (int i = 0; i < (fTestNet? 0 : 2); i++)
     {
         uint8_t LowByte = PoKData[0] & ~NONCE_MASK;  // ignore lowest 6 bits in nonce to allow enumeration of 64 hashes without recomputing whole block hash
         SHA256_Update(&ctx, &LowByte, 1);
@@ -2236,6 +2239,20 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
     if (fJustCheck)
         return true;
 
+    CKeyID KeyID = elected.FillBlock(pindex, view);
+    if (!KeyID)
+    {
+        if (vtx[0].vout.size() != 1)
+            return state.DoS(100, error("ConnectBlock() : unnecessary masternode payment"));
+    }
+    else
+    {
+        if (vtx[0].vout.size() != 2)
+            return state.DoS(100, error("ConnectBlock() : no masternode payment"));
+        if (extractKeyID(vtx[0].vout[1].scriptPubKey) != KeyID)
+            return state.DoS(100, error("ConnectBlock() : wrong masternode payment"));
+    }
+
     // Write undo information to disk
     if (pindex->GetUndoPos().IsNull() || (pindex->nStatus & BLOCK_VALID_MASK) < BLOCK_VALID_SCRIPTS)
     {
@@ -2256,19 +2273,6 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
         CDiskBlockIndex blockindex(pindex);
         if (!pblocktree->WriteBlockIndex(blockindex))
             return state.Abort(_("Failed to write block index"));
-    }
-    CKeyID KeyID = elected.FillBlock(pindex, view);
-    if (!KeyID)
-    {
-        if (vtx[0].vout.size() != 1)
-            return state.DoS(100, error("ConnectBlock() : unnecessary masternode payment"));
-    }
-    else
-    {
-        if (vtx[0].vout.size() != 2)
-            return state.DoS(100, error("ConnectBlock() : no masternode payment"));
-        if (extractKeyID(vtx[0].vout[1].scriptPubKey) != KeyID)
-            return state.DoS(100, error("ConnectBlock() : wrong masternode payment"));
     }
 
     elected.ApplyBlock(pindex, true);
@@ -2414,7 +2418,7 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
     BOOST_FOREACH(CTransaction& tx, vResurrect) {
         // ignore validation errors in resurrected transactions
         CValidationState stateDummy;
-        if (!tx.AcceptToMemoryPool(stateDummy, true, false))
+        if (!tx.AcceptToMemoryPool(stateDummy, true, false, false, NULL))
             mempool.remove(tx, true);
     }
 
@@ -4287,7 +4291,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
         bool fMissingInputs = false;
         CValidationState state;
-        if (tx.AcceptToMemoryPool(state, true, true, &fMissingInputs))
+        if (tx.AcceptToMemoryPool(state, true, true, true, &fMissingInputs))
         {
             RelayTransaction(tx, inv.hash);
             mapAlreadyAskedFor.erase(inv);
@@ -4315,7 +4319,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                     // anyone relaying LegitTxX banned)
                     CValidationState stateDummy;
 
-                    if (tx.AcceptToMemoryPool(stateDummy, true, true, &fMissingInputs2))
+                    if (tx.AcceptToMemoryPool(stateDummy, true, true, true, &fMissingInputs2))
                     {
                         printf("   accepted orphan tx %s\n", orphanHash.ToString().c_str());
                         RelayTransaction(orphanTx, orphanHash);
@@ -4524,6 +4528,17 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         uint256 mnemHash = mnem.GetHash();
         if (pfrom->setKnown.count(mnemHash) == 0)
             MN_ProcessExistenceMsg(pfrom, mnem);
+    }
+
+
+    else if (strCommand == "mnitx")
+    {
+        CMasterNodeInstantTxMsg mnitx;
+        vRecv >> mnitx;
+
+        uint256 mnemHash = mnitx.GetHash();
+        if (pfrom->setKnown.count(mnemHash) == 0)
+            MN_ProcessInstantTxMsg(pfrom, mnitx);
     }
 
 

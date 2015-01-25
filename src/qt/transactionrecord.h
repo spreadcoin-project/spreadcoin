@@ -15,7 +15,7 @@ class TransactionStatus
 public:
     TransactionStatus():
         confirmed(false), sortKey(""), maturity(Mature),
-        matures_in(0), status(Offline), depth(0), open_for(0), cur_num_blocks(-1)
+        matures_in(0), status(Offline), depth(0), open_for(0), mn_confirms(0), mn_confirmed(false), cur_num_blocks(-1)
     { }
 
     enum Maturity
@@ -51,6 +51,9 @@ public:
                       of additional blocks that need to be mined before
                       finalization */
     /**@}*/
+
+    int mn_confirms;
+    bool mn_confirmed;
 
     /** Current number of blocks (to know whether cached status is still valid) */
     int cur_num_blocks;

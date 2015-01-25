@@ -18,7 +18,8 @@ public:
 bool MN_SetMy(const COutPoint& outpoint, bool my);
 bool MN_Start(const COutPoint& outpoint, const CMasterNodeSecret &secret);
 bool MN_Stop(const COutPoint& outpoint);
+void MN_MyRemoveOutdated();
 
 // Process network events
 void MN_MyProcessBlock(const CBlockIndex* pBlock);
-void MN_ProcessInstantTx(const CTransaction& tx);
+void MN_MyProcessTx(const CTransaction& tx, int64_t nFees);

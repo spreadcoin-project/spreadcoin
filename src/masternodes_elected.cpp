@@ -75,8 +75,7 @@ CKeyID CElectedMasternodes::FillBlock(CBlockIndex* pindex, CCoinsViewCache &Coin
                     continue;
                 if (j && !MN_IsAcceptableMasternodeInput(outpoint, &Coins))
                     continue;
-
-                if (std::find(pindex->velected[j].begin(), pindex->velected[j].end(), outpoint) == pindex->velected[j].end())
+                if (std::find(pindex->velected[j].begin(), pindex->velected[j].end(), outpoint) != pindex->velected[j].end())
                     continue;
 
                 pindex->velected[j].push_back(outpoint);
@@ -88,6 +87,7 @@ CKeyID CElectedMasternodes::FillBlock(CBlockIndex* pindex, CCoinsViewCache &Coin
         return CKeyID(0);
 
     pindex->mn = payeeOutpoint;
+    pindex->mnKeyId = payee;
     return payee;
 }
 

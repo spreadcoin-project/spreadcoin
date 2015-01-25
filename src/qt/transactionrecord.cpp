@@ -2,6 +2,7 @@
 
 #include "wallet.h"
 #include "base58.h"
+#include "masternodes.h"
 
 /* Return positive answer if transaction should be shown in list.
  */
@@ -161,6 +162,7 @@ void TransactionRecord::updateStatus(const CWalletTx &wtx)
     status.confirmed = wtx.IsConfirmed();
     status.depth = wtx.GetDepthInMainChain();
     status.cur_num_blocks = nBestHeight;
+    status.mn_confirms = MN_GetNumConfirms(wtx);
 
     if (!wtx.IsFinal())
     {

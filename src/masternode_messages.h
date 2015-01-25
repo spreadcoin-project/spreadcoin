@@ -68,8 +68,8 @@ class CMasterNodeInstantTxMsg : public CMasterNodeBaseMsg
 {
 public:
     COutPoint outpointTx;
-
     uint256 hashTx;
+    int nMnBlock;
 
     uint256 GetHashForSignature() const;
     uint256 GetHash() const;
@@ -82,5 +82,12 @@ public:
 
         READWRITE(outpointTx);
         READWRITE(hashTx);
+        READWRITE(nMnBlock);
     )
+};
+
+class CInstantTx : public CTransaction
+{
+public:
+    std::vector<CMasterNodeInstantTxMsg> confirmns;
 };

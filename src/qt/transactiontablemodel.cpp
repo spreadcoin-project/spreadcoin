@@ -8,6 +8,7 @@
 #include "optionsmodel.h"
 #include "addresstablemodel.h"
 #include "bitcoinunits.h"
+#include "masternodes.h"
 
 #include "wallet.h"
 #include "ui_interface.h"
@@ -285,13 +286,13 @@ QString TransactionTableModel::formatTxStatus(const TransactionRecord *wtx) cons
         status = tr("Open until %1").arg(GUIUtil::dateTimeStr(wtx->status.open_for));
         break;
     case TransactionStatus::Offline:
-        status = tr("Offline (%1 confirmations)").arg(wtx->status.depth);
+        status = tr("Offline (%1 confirmations, %2 masternode confirmations)").arg(wtx->status.depth).arg(wtx->status.mn_confirms);
         break;
     case TransactionStatus::Unconfirmed:
-        status = tr("Unconfirmed (%1 of %2 confirmations)").arg(wtx->status.depth).arg(TransactionRecord::NumConfirmations);
+        status = tr("Unconfirmed (%1 of %2 confirmations, %3 of %4 masternode confirmations)").arg(wtx->status.depth).arg(TransactionRecord::NumConfirmations).arg(wtx->status.mn_confirms).arg(g_InstantTxMinConfirmations);
         break;
     case TransactionStatus::HaveConfirmations:
-        status = tr("Confirmed (%1 confirmations)").arg(wtx->status.depth);
+        status = tr("Confirmed (%1 confirmations, %2 masternode confirmations)").arg(wtx->status.depth).arg(wtx->status.mn_confirms);
         break;
     }
     if(wtx->type == TransactionRecord::Generated)

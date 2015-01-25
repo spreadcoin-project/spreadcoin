@@ -14,20 +14,18 @@ static const int g_MasternodeMinConfirmations = 10;
 static const int g_AnnounceExistenceRestartPeriod = 20;
 static const int g_AnnounceExistencePeriod = 5;
 static const int g_MonitoringPeriod = 100;
-static const int g_MonitoringPeriodMin = 30;
+static const int g_MonitoringPeriodMin = 10;
 
 // If masternode doesn't respond to some message we assume that it has responded in this amount of time.
 static const double g_PenaltyTime = 500.0;
 static const double g_MaxScore = 100.0;
 
-// Instant transactions
-static const int g_MaxInstantTxInputs = 15;
-static const int g_InstantTxFeePerInput = COIN/1000;
-
 // Blockchain length at startup after sync. We don't know anythyng about how well masternodes were behaving before this block.
 static int32_t g_InitialBlock = 0;
 
 boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
+
+static std::vector<CMasterNodeInstantTxMsg> g_TxConfirms[g_InstantTxMaxConfirmations*g_InstantTxPeriod];
 
 bool MN_IsAcceptableMasternodeInput(const COutPoint& outpoint, CCoinsViewCache* pCoins)
 {
@@ -67,13 +65,13 @@ std::vector<int> CMasterNode::GetExistenceBlocks() const
     return v;
 }
 
-int CMasterNode::AddExistenceMsg(const CMasterNodeExistenceMsg& newMsg)
+bool CMasterNode::AddExistenceMsg(const CMasterNodeExistenceMsg& newMsg, CValidationState& state)
 {
     uint256 hash = newMsg.GetHash();
     for (unsigned int i = 0; i < existenceMsgs.size(); i++)
     {
         if (existenceMsgs[i].msg.GetHash() == hash)
-            return 0;
+            return state.Invalid();
     }
 
     Cleanup();
@@ -82,14 +80,14 @@ int CMasterNode::AddExistenceMsg(const CMasterNodeExistenceMsg& newMsg)
     if (existenceMsgs.size() > g_MonitoringPeriod/g_AnnounceExistencePeriod*10)
     {
         misbehaving = true;
-        return 20;
+        return state.DoS(20, error("CMasterNode::AddExistenceMsg: too many messages"));
     }
 
     CReceivedExistenceMsg receivedMsg;
     receivedMsg.msg = newMsg;
     receivedMsg.nReceiveTime = GetMontoneTimeMs();
     existenceMsgs.push_back(receivedMsg);
-    return -1;
+    return true;
 }
 
 void CMasterNode::Cleanup()
@@ -209,6 +207,8 @@ void MN_Cleanup()
             masternodes[pair.first] = std::move(pair.second);
     }
     g_MasterNodes = masternodes;
+
+    MN_MyRemoveOutdated();
 }
 
 void MN_ProcessBlocks()
@@ -228,44 +228,47 @@ void MN_ProcessBlocks()
     {
         pBlock->nReceiveTime = GetMontoneTimeMs();
         MN_MyProcessBlock(pBlock);
+
+        int i = pBlock->nHeight % (g_InstantTxMaxConfirmations*g_InstantTxPeriod);
+        g_TxConfirms[i].clear();
     }
 }
 
-static bool CanBeInstantTx(const CTransaction& tx)
+bool MN_CanBeInstantTx(const CTransaction& tx, int64_t nFees)
 {
     if (tx.vin.size() > g_MaxInstantTxInputs)
         return false;
 
-    tx.GetValueIn()
-    tx.vin.size() <
+    if (nFees < (int64_t)tx.vin.size()*g_InstantTxFeePerInput)
+        return false;
+
+    if (!tx.IsFinal())
+        return false;
+
+    return true;
 }
 
-void MN_ProcessTx(const CTransaction& tx)
-{
-
-}
-
-static int MN_ProcessExistenceMsg_Impl(const CMasterNodeExistenceMsg& mnem)
+static bool MN_ProcessExistenceMsg_Impl(const CMasterNodeExistenceMsg& mnem, CValidationState& state)
 {
     // Too old message, it should not be retranslated
     if (mnem.nBlock < nBestHeight - 100)
-        return 20;
+        return state.DoS(20, error("MN_ProcessExistenceMsg_Impl: mnem too old"));
 
     // Too old message
     if (mnem.nBlock < nBestHeight- 50)
-        return 0;
+        return state.Invalid(error("MN_ProcessExistenceMsg_Impl: mnem too old"));
 
     CMasterNode* pmn = MN_Get(mnem.outpoint);
     if (!pmn)
-        return 20;
+        return state.DoS(20, error("MN_ProcessExistenceMsg_Impl: masternode not found"));
 
     // Check signature
     if (!mnem.CheckSignature() || mnem.GetOutpointKeyID() != pmn->keyid)
-        return 100;
+        return state.DoS(20, error("MN_ProcessExistenceMsg_Impl: invalid signature"));
 
     printf("Masternode existence message mn=%s:%u, block=%u\n", mnem.outpoint.hash.ToString().c_str(), mnem.outpoint.n, mnem.nBlock);
 
-    return pmn->AddExistenceMsg(mnem);
+    return pmn->AddExistenceMsg(mnem, state);
 }
 
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem)
@@ -273,11 +276,14 @@ void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem)
     if (IsInitialBlockDownload())
         return;
 
-    int misbehave = MN_ProcessExistenceMsg_Impl(mnem);
-    if (misbehave > 0 && pfrom)
-        pfrom->Misbehaving(misbehave);
+    CValidationState state;
+    bool Ok = MN_ProcessExistenceMsg_Impl(mnem, state);
 
-    if (misbehave >= 0)
+    int nDoS = 0;
+    if (state.IsInvalid(nDoS) && nDoS > 0)
+        pfrom->Misbehaving(nDoS);
+
+    if (!Ok)
         return;
 
     uint256 mnemHash = mnem.GetHash();
@@ -293,6 +299,102 @@ void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem)
             if (pnode->setKnown.insert(mnemHash).second)
             {
                 pnode->PushMessage("mnexists", mnem);
+            }
+        }
+    }
+}
+
+std::vector<int> MN_GetConfirmationBlocks(COutPoint outpoint, int nBlockBegin, int nBlockEnd)
+{
+    if (nBlockBegin < (int)getThirdHardforkBlock())
+        nBlockBegin = getThirdHardforkBlock();
+
+    std::vector<int> blocks;
+    for (int i = nBlockBegin/g_InstantTxPeriod; i < nBlockEnd/g_InstantTxPeriod + 1; i++)
+    {
+        CHashWriter hasher(SER_GETHASH, 0);;
+        hasher << outpoint;
+        hasher << i;
+        int nBlock = i*g_InstantTxPeriod + (hasher.GetHash().Get64() % g_InstantTxPeriod);
+        if (nBlock >= nBlockBegin && nBlock <= nBlockEnd)
+            blocks.push_back(nBlock);
+    }
+    return blocks;
+}
+
+static bool ShouldConfirm(int nBlock, COutPoint outpoint)
+{
+    std::vector<int> blocks = MN_GetConfirmationBlocks(outpoint, nBlock, nBlock);
+    return blocks.size() == 1 && blocks[0] == nBlock;
+}
+
+static int MN_ProcessInstantTxMsg_Impl(const CMasterNodeInstantTxMsg& mnitx, CValidationState& state)
+{
+    if (mnitx.nMnBlock > nBestHeight + 5 || mnitx.nMnBlock < nBestHeight - g_InstantTxPeriod*g_InstantTxMaxConfirmations*2)
+        return state.DoS(20, error("MN_ProcessInstantTxMsg_Impl: block out of range"));
+
+    if (!ShouldConfirm(mnitx.nMnBlock, mnitx.outpointTx))
+        return state.DoS(20, error("MN_ProcessInstantTxMsg_Impl: should not confirm"));
+
+    CBlockIndex* pIndex = FindBlockByHeight(mnitx.nMnBlock);
+    if (!pIndex)
+        return state.Invalid(error("MN_ProcessInstantTxMsg_Impl: couldn't find block"));
+
+    if (pIndex->mn != mnitx.outpoint)
+        return state.DoS(20, error("MN_ProcessInstantTxMsg_Impl: wrong masternode"));
+
+    // Check signature
+    if (!mnitx.CheckSignature() || mnitx.GetOutpointKeyID() != pIndex->mnKeyId)
+        return state.DoS(20, error("MN_ProcessInstantTxMsg_Impl: invalid signature"));
+
+    int i = mnitx.nMnBlock % (g_InstantTxMaxConfirmations*g_InstantTxPeriod);
+    auto& confirms = g_TxConfirms[i];
+
+    if (confirms.size() > 1000)
+        return state.Invalid(error("MN_ProcessInstantTxMsg_Impl: too many messsages"));
+
+    uint256 hash = mnitx.GetHash();
+    for (const auto& confirm : confirms)
+    {
+        if (confirm.GetHash() == hash)
+            return state.Invalid(error("MN_ProcessInstantTxMsg_Impl: already have"));
+    }
+
+    printf("Masternode instant tx message mn=%s:%u, block=%i, %s:%u -> %s\n", mnitx.outpoint.hash.ToString().c_str(), mnitx.outpoint.n,
+           mnitx.nMnBlock, mnitx.outpointTx.hash.GetHex().c_str(), mnitx.outpointTx.n, mnitx.hashTx.GetHex().c_str());
+
+    confirms.push_back(mnitx);
+    return true;
+}
+
+void MN_ProcessInstantTxMsg(CNode* pfrom, const CMasterNodeInstantTxMsg& mnitx)
+{
+    if (IsInitialBlockDownload())
+        return;
+
+    CValidationState state;
+    bool Ok = MN_ProcessInstantTxMsg_Impl(mnitx, state);
+
+    int nDoS = 0;
+    if (pfrom && state.IsInvalid(nDoS) && nDoS > 0)
+        pfrom->Misbehaving(nDoS);
+
+    if (!Ok)
+        return;
+
+    uint256 mnitxHash = mnitx.GetHash();
+    if (pfrom)
+        pfrom->setKnown.insert(mnitxHash);
+
+    // Relay
+    {
+        LOCK(cs_vNodes);
+        BOOST_FOREACH(CNode* pnode, vNodes)
+        {
+            // returns true if wasn't already contained in the set
+            if (pnode->setKnown.insert(mnitxHash).second)
+            {
+                pnode->PushMessage("mnitx", mnitx);
             }
         }
     }
@@ -440,4 +542,36 @@ void MN_GetVotes(CBlockIndex* pindex, boost::unordered_map<COutPoint, int> vvote
             MN_Get(pair.first);
         }
     }
+}
+
+int MN_GetNumConfirms(const CTransaction& tx)
+{
+    uint256 hashTx = tx.GetHash();
+
+    int minConfirmations = 100;
+
+    for (const CTxIn& txin : tx.vin)
+    {
+        COutPoint outpointTx = txin.prevout;
+        std::vector<int> blocks = MN_GetConfirmationBlocks(outpointTx, nBestHeight - g_InstantTxPeriod*g_InstantTxPeriod, nBestHeight);
+
+        int inputConfirmations = 0;
+        for (const int nBlock : blocks)
+        {
+            for (const auto& confirm : g_TxConfirms[nBlock % (g_InstantTxMaxConfirmations*g_InstantTxPeriod)])
+            {
+                if (confirm.outpointTx == outpointTx && confirm.hashTx == hashTx)
+                    inputConfirmations++;
+            }
+        }
+        if (inputConfirmations < minConfirmations)
+            minConfirmations = inputConfirmations;
+    }
+
+    return minConfirmations;
+}
+
+bool MN_CheckInstantTx(const CInstantTx& tx)
+{
+    return false;
 }

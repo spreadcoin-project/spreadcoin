@@ -13,6 +13,13 @@ static const int g_MasternodesElectionPeriod = 50;
 static const int g_MasternodeRewardPercentage = 30;
 static const int g_MaxMasternodes = 1500;
 
+// Instant transactions
+static const int g_MaxInstantTxInputs = 15;
+static const int g_InstantTxFeePerInput = COIN/1000;
+static const int g_InstantTxPeriod = 100;
+static const int g_InstantTxMaxConfirmations = 10;
+static const int g_InstantTxMinConfirmations = 7;
+
 class CMasterNode
 {
     struct CReceivedExistenceMsg
@@ -52,8 +59,7 @@ public:
     // Which blocks should be signed by this masternode to prove that it is running
     std::vector<int> GetExistenceBlocks() const;
 
-    // Returns misbehave value or -1 if everything is ok.
-    int AddExistenceMsg(const CMasterNodeExistenceMsg& msg);
+    bool AddExistenceMsg(const CMasterNodeExistenceMsg& msg, CValidationState &state);
 };
 
 // All these variables and functions require locking cs_main.
@@ -70,17 +76,22 @@ void MN_Cleanup();
 
 // Process network events
 void MN_ProcessBlocks();
-void MN_ProcessTx(const CTransaction& tx);
 void MN_ProcessExistenceMsg(CNode* pfrom, const CMasterNodeExistenceMsg& mnem);
+void MN_ProcessInstantTxMsg(CNode* pfrom, const CMasterNodeInstantTxMsg& mnitx);
 
 // Functions necessary for mining
 void MN_CastVotes(std::vector<COutPoint> vvotes[2], CCoinsViewCache& coins);
-
 
 inline int64_t MN_GetReward(int64_t BlockValue)
 {
     return BlockValue*g_MasternodeRewardPercentage/100;
 }
+
+// Instant tx
+bool MN_CanBeInstantTx(const CTransaction& tx, int64_t nFees);
+std::vector<int> MN_GetConfirmationBlocks(COutPoint outpoint, int nBlockBegin, int nBlockEnd);
+int MN_GetNumConfirms(const CTransaction& tx);
+bool MN_CheckInstantTx(const CInstantTx& tx);
 
 // Info
 void MN_GetVotes(CBlockIndex* pindex, boost::unordered_map<COutPoint, int> vvotes[2]);

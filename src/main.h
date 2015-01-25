@@ -658,8 +658,8 @@ public:
         return dPriority > COIN * 576 / 250;
     }
 
-// Apply the effects of this transaction on the UTXO set represented by view
-void UpdateCoins(const CTransaction& tx, CValidationState &state, CCoinsViewCache &inputs, CTxUndo &txundo, int nHeight, const uint256 &txhash);
+    // Apply the effects of this transaction on the UTXO set represented by view
+    void UpdateCoins(const CTransaction& tx, CValidationState &state, CCoinsViewCache &inputs, CTxUndo &txundo, int nHeight, const uint256 &txhash);
 
     int64 GetMinFee(unsigned int nBlockSize=1, bool fAllowFree=true, enum GetMinFee_mode mode=GMF_BLOCK) const;
 
@@ -716,7 +716,7 @@ void UpdateCoins(const CTransaction& tx, CValidationState &state, CCoinsViewCach
     bool CheckTransaction(CValidationState &state) const;
 
     // Try to accept this transaction into the memory pool
-    bool AcceptToMemoryPool(CValidationState &state, bool fCheckInputs=true, bool fLimitFree = true, bool* pfMissingInputs=NULL);
+    bool AcceptToMemoryPool(CValidationState &state, bool fCheckInputs, bool fLimitFree, bool fTryInstantTx, bool* pfMissingInputs);
 
     // Check everything without accepting into the pool
     bool IsAcceptable(CValidationState &state, bool fCheckInputs=true, bool fLimitFree = true, bool* pfMissingInputs=NULL);
@@ -1202,7 +1202,7 @@ public:
     int GetDepthInMainChain() const { CBlockIndex *pindexRet; return GetDepthInMainChain(pindexRet); }
     bool IsInMainChain() const { return GetDepthInMainChain() > 0; }
     int GetBlocksToMaturity() const;
-    bool AcceptToMemoryPool(bool fCheckInputs=true, bool fLimitFree=true);
+    bool AcceptToMemoryPool(bool fCheckInputs, bool fLimitFree, bool fTryInstantTx);
     bool IsAcceptable(bool fCheckInputs=true, bool fLimitFree=true);
 };
 
@@ -1782,6 +1782,7 @@ public:
     std::vector<COutPoint> velected[2];
 
     COutPoint mn;
+    CKeyID mnKeyId;
 
     CBlockIndex()
     {
@@ -2013,6 +2014,7 @@ public:
             READWRITE(velected[0]);
             READWRITE(velected[1]);
             READWRITE(mn);
+            READWRITE(mnKeyId);
         }
     )
 
@@ -2239,7 +2241,7 @@ public:
     std::map<uint256, CTransaction> mapTx;
     std::map<COutPoint, CInPoint> mapNextTx;
 
-    bool accept(CValidationState &state, CTransaction &tx, bool fCheckInputs, bool fLimitFree, bool* pfMissingInputs);
+    bool accept(CValidationState &state, CTransaction &tx, bool fCheckInputs, bool fLimitFree, bool fTryInstantTx, bool* pfMissingInputs);
     bool acceptable(CValidationState &state, CTransaction &tx, bool fCheckInputs, bool fLimitFree, bool* pfMissingInputs);
     bool acceptableInputs(CValidationState &state, CTransaction &tx, bool fLimitFree);
     bool addUnchecked(const uint256& hash, const CTransaction &tx);

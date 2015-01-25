@@ -222,8 +222,11 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
                 pindexNew->nStatus        = diskindex.nStatus;
                 pindexNew->nTx            = diskindex.nTx;
                 pindexNew->mn             = diskindex.mn;
+                pindexNew->mnKeyId        = diskindex.mnKeyId;
                 pindexNew->vvotes[0]      = diskindex.vvotes[0];
                 pindexNew->vvotes[1]      = diskindex.vvotes[1];
+                pindexNew->velected[0]    = diskindex.velected[0];
+                pindexNew->velected[1]    = diskindex.velected[1];
 
                 // Watch for genesis block
                 if (pindexGenesisBlock == NULL && diskindex.GetBlockHash() == hashGenesisBlock)

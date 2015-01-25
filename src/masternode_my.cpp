@@ -63,6 +63,26 @@ bool MN_Stop(const COutPoint& outpoint)
     return true;
 }
 
+void MN_MyRemoveOutdated()
+{
+    boost::unordered_set<COutPoint> OurMN;
+
+    for (const COutPoint& outpoint : g_OurMasterNodes)
+    {
+        if (g_MasterNodes.count(outpoint) != 0)
+            OurMN.insert(outpoint);
+    }
+
+    g_OurMasterNodes = std::move(OurMN);
+}
+
+static void InitBaseMsg(CMasterNodeBaseMsg& msg, CMasterNode& mn)
+{
+    msg.pubkey2.pubkey2 = mn.secret.privkey.GetPubKey();
+    msg.pubkey2.signature = mn.secret.signature;
+    msg.outpoint = mn.outpoint;
+}
+
 void MN_MyProcessBlock(const CBlockIndex* pBlock)
 {
     for (COutPoint outpoint : g_OurMasterNodes)
@@ -78,9 +98,7 @@ void MN_MyProcessBlock(const CBlockIndex* pBlock)
             continue;
 
         CMasterNodeExistenceMsg mnem;
-        mnem.pubkey2.pubkey2 = mn.secret.privkey.GetPubKey();
-        mnem.pubkey2.signature = mn.secret.signature;
-        mnem.outpoint = mn.outpoint;
+        InitBaseMsg(mnem, mn);
         mnem.hashBlock = pBlock->GetBlockHash();
         mnem.nBlock = pBlock->nHeight;
         mnem.signature = mn.secret.privkey.Sign(mnem.GetHashForSignature());
@@ -89,7 +107,34 @@ void MN_MyProcessBlock(const CBlockIndex* pBlock)
     }
 }
 
-void MN_ProcessInstantTx(const CTransaction& tx)
+void MN_MyProcessTx(const CTransaction& tx, int64_t nFees)
 {
+    if (!MN_CanBeInstantTx(tx, nFees))
+        return;
 
+    for (const CTxIn& txin : tx.vin)
+    {
+        COutPoint outpointTx = txin.prevout;
+        std::vector<int> blocks = MN_GetConfirmationBlocks(outpointTx, nBestHeight - g_InstantTxPeriod*g_InstantTxPeriod, nBestHeight);
+        for (const int nBlock : blocks)
+        {
+            CBlockIndex* pindex = FindBlockByHeight(nBlock);
+            if (!pindex)
+                continue;
+
+            CMasterNode* pmn = MN_Get(pindex->mn);
+            if (!pmn || !pmn->secret.privkey.IsValid())
+                continue;
+
+            CMasterNodeInstantTxMsg mnitx;
+            InitBaseMsg(mnitx, *pmn);
+
+            mnitx.hashTx = tx.GetHash();
+            mnitx.outpointTx = outpointTx;
+            mnitx.nMnBlock = nBlock;
+            mnitx.signature = pmn->secret.privkey.Sign(mnitx.GetHashForSignature());
+
+            MN_ProcessInstantTxMsg(NULL, mnitx);
+        }
+    }
 }
