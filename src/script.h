@@ -548,7 +548,7 @@ public:
 
 
     void SetDestination(const CTxDestination& address);
-    void SetMultisig(int nRequired, const std::vector<CPubKey>& keys);
+    void SetMultisig(int nRequired, const std::vector<CKeyID> &keys);
 
 
     void PrintHex() const
