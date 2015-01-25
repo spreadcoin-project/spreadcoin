@@ -10,6 +10,7 @@
 #include "init.h"
 #include "util.h"
 #include "ui_interface.h"
+#include "masternode_my.h"
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -1165,6 +1166,8 @@ bool AppInit2(boost::thread_group& threadGroup)
     // Generate coins in the background
     if (pwalletMain)
         GenerateBitcoins(GetBoolArg("-gen", false), pwalletMain);
+
+    MN_StartFromConfig();
 
     // ********************************************************* Step 12: finished
 

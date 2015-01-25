@@ -1,4 +1,5 @@
 #include <boost/unordered_set.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include "masternodes.h"
 #include "init.h"
@@ -45,6 +46,32 @@ bool MN_Start(const COutPoint& outpoint, const CMasterNodeSecret& secret)
     pmn->secret = secret;
     g_OurMasterNodes.insert(outpoint);
     return true;
+}
+
+bool MN_StartFromStr(const std::string& secretStr)
+{
+    std::vector<std::string> params2;
+    boost::split(params2, secretStr, boost::is_any_of(":"));
+    if (params2.size() != 4)
+        return false;
+
+    COutPoint outpoint;
+    outpoint.n = atoi(params2[1]);
+    outpoint.hash.SetHex(params2[0]);
+
+    CBigNum signature;
+    signature.SetHex(params2[2]);
+    auto vec = signature.getvch();
+    std::reverse(vec.begin(), vec.end());
+
+    CMasterNodeSecret mnsecret;
+    std::copy(vec.begin(), vec.end(), mnsecret.signature.begin());
+
+    CBitcoinSecret secret;
+    secret.SetString(params2[3]);
+    mnsecret.privkey = secret.GetKey();
+
+    return MN_Start(outpoint, mnsecret);
 }
 
 bool MN_Stop(const COutPoint& outpoint)
@@ -137,4 +164,11 @@ void MN_MyProcessTx(const CTransaction& tx, int64_t nFees)
             MN_ProcessInstantTxMsg(NULL, mnitx);
         }
     }
+}
+
+void MN_StartFromConfig()
+{
+    std::vector<std::string> mnsecrets = mapMultiArgs["-mnstart"];
+
+    std::for_each(mnsecrets.begin(), mnsecrets.end(), MN_StartFromStr);
 }

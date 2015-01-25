@@ -56,30 +56,7 @@ Value mnstart(const Array& params, bool fHelp)
             "mnstart tx:n:signature:privkey\n"
             "Start masternode.");
 
-    vector<string> params2;
-    boost::split(params2, params[0].get_str(), boost::is_any_of(":"));
-    if (params2.size() != 4)
-        throw runtime_error(
-            "mnstart tx:n:signature:privkey\n"
-            "Start masternode.");
-
-    COutPoint outpoint;
-    outpoint.n = atoi(params2[1]);
-    outpoint.hash.SetHex(params2[0]);
-
-    CBigNum signature;
-    signature.SetHex(params2[2]);
-    auto vec = signature.getvch();
-    std::reverse(vec.begin(), vec.end());
-
-    CMasterNodeSecret mnsecret;
-    std::copy(vec.begin(), vec.end(), mnsecret.signature.begin());
-
-    CBitcoinSecret secret;
-    secret.SetString(params2[3]);
-    mnsecret.privkey = secret.GetKey();
-
-    return MN_Start(outpoint, mnsecret);
+    return MN_StartFromStr(params[0].get_str());
 }
 
 Value mnstop(const Array& params, bool fHelp)
