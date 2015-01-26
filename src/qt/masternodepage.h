@@ -42,12 +42,13 @@ public:
     void setModel(WalletModel *model);
 
 protected:
-    void showEvent(QShowEvent *) override;
+    void showEvent(QShowEvent *);
 
 private:
     Ui::MasternodePage *ui;
 
     WalletModel *model;
+
 
 private slots:
 
