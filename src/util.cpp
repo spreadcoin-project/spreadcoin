@@ -599,6 +599,10 @@ int64 GetArg(const std::string& strArg, int64 nDefault)
 
 bool GetBoolArg(const std::string& strArg, bool fDefault)
 {
+    // FIXME: hack to force testnet, this is for testing only, should be removed later
+    if (strArg == "-testnet")
+        return true;
+
     if (mapArgs.count(strArg))
     {
         if (mapArgs[strArg].empty())
@@ -1037,7 +1041,7 @@ boost::filesystem::path GetDefaultDataDir()
     // Unix: ~/.bitcoin
 #ifdef WIN32
     // Windows
-    return GetSpecialFolderPath(CSIDL_APPDATA) / "SpreadCoin";
+    return GetSpecialFolderPath(CSIDL_APPDATA) / "SpreadTestCoin";
 #else
     fs::path pathRet;
     char* pszHome = getenv("HOME");
@@ -1049,10 +1053,10 @@ boost::filesystem::path GetDefaultDataDir()
     // Mac
     pathRet /= "Library/Application Support";
     fs::create_directory(pathRet);
-    return pathRet / "SpreadCoin";
+    return pathRet / "SpreadTestCoin";
 #else
     // Unix
-    return pathRet / ".spreadcoin";
+    return pathRet / ".spreadtestcoin";
 #endif
 #endif
 }
