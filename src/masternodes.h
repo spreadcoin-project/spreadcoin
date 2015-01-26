@@ -34,10 +34,10 @@ class CMasterNode
     // Should be executed from time to time to remove unnecessary information
     void Cleanup();
 
-    bool misbehaving = false;
+    bool misbehaving;
 
     mutable double score;
-    mutable int lastScoreUpdate = 0;
+    mutable int lastScoreUpdate;
 
     void UpdateScore() const;
 
@@ -46,10 +46,12 @@ public:
     CKeyID    keyid;
     uint64_t  amount;
 
-    bool my = false;
+    bool my;
 
     // Only for our masternodes
     CMasterNodeSecret secret;
+
+    CMasterNode();
 
     // Score based on how fast this node broadcasts its responces.
     // Miners use this value to elect new masternodes or remove old ones.

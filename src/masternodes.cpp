@@ -34,6 +34,14 @@ bool MN_IsAcceptableMasternodeInput(const COutPoint& outpoint, CCoinsViewCache* 
     return MN_GetKeyIDAndAmount(outpoint, keyid, amount, pCoins);
 }
 
+CMasterNode::CMasterNode()
+{
+     my = false;
+     misbehaving = false;
+     lastScoreUpdate = 0;
+     score = 500.0;
+}
+
 std::vector<int> CMasterNode::GetExistenceBlocks() const
 {
     std::vector<int> v;
