@@ -1,7 +1,7 @@
 #include "masternodes.h"
 
-static const unsigned int g_MasternodesStartPayments = 6;
-static const unsigned int g_MasternodesStopPayments = 3;
+static const unsigned int g_MasternodesStartPayments = 300;
+static const unsigned int g_MasternodesStopPayments = 150;
 
 CElectedMasternodes g_ElectedMasternodes;
 

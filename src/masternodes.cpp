@@ -9,12 +9,12 @@ static int64_t GetMontoneTimeMs()
     return boost::chrono::duration_cast<boost::chrono::milliseconds>(boost::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
-static const int g_MasternodeMinConfirmations = 10;
+static const int g_MasternodeMinConfirmations = 50;
 
-static const int g_AnnounceExistenceRestartPeriod = 20;
-static const int g_AnnounceExistencePeriod = 5;
-static const int g_MonitoringPeriod = 100;
-static const int g_MonitoringPeriodMin = 10;
+static const int g_AnnounceExistenceRestartPeriod = 200;
+static const int g_AnnounceExistencePeriod = 50;
+static const int g_MonitoringPeriod = 200;
+static const int g_MonitoringPeriodMin = 50;
 
 // If masternode doesn't respond to some message we assume that it has responded in this amount of time.
 static const double g_PenaltyTime = 500.0;
@@ -47,6 +47,8 @@ std::vector<int> CMasterNode::GetExistenceBlocks() const
     {
         int nSeedBlock = nBlock - i*g_AnnounceExistenceRestartPeriod;
         CBlockIndex* pSeedBlock = FindBlockByHeight(nSeedBlock - g_AnnounceExistencePeriod);
+        if (!pSeedBlock)
+            continue;
 
         CHashWriter hasher(SER_GETHASH, 0);
         hasher << pSeedBlock->GetBlockHash();
@@ -56,7 +58,7 @@ std::vector<int> CMasterNode::GetExistenceBlocks() const
         int Shift = hash % g_AnnounceExistencePeriod;
         for (int j = nSeedBlock + Shift; j < nSeedBlock + g_AnnounceExistenceRestartPeriod; j += g_AnnounceExistencePeriod)
         {
-            if (j <= nBestHeight && j > nCurHeight - g_AnnounceExistenceRestartPeriod)
+            if (j <= nBestHeight && j > nCurHeight - g_AnnounceExistenceRestartPeriod && j > 4*g_AnnounceExistenceRestartPeriod)
             {
                 v.push_back(j);
             }
@@ -452,7 +454,7 @@ void MN_CastVotes(std::vector<COutPoint> vvotes[], CCoinsViewCache &coins)
     vvotes[1].clear();
 
     // Check if we are monitoring network long enough to start voting
-    if (nBestHeight < g_InitialBlock + g_MonitoringPeriodMin)
+    if (nBestHeight < g_InitialBlock + g_MonitoringPeriodMin || nBestHeight < 5*g_AnnounceExistenceRestartPeriod)
         return;
 
     std::vector<const CMasterNode*> velected;

@@ -7,11 +7,11 @@
 #include "masternode_messages.h"
 #include "masternode_my.h"
 
-static const int64_t g_MinMasternodeAmount = 1000*COIN;
+static const int64_t g_MinMasternodeAmount = 100*COIN;
 static const int g_MaxMasternodeVotes = 10;
-static const int g_MasternodesElectionPeriod = 50;
+static const int g_MasternodesElectionPeriod = 60;
 static const int g_MasternodeRewardPercentage = 30;
-static const int g_MaxMasternodes = 1500;
+static const int g_MaxMasternodes = 1000;
 
 // Instant transactions
 static const int g_MaxInstantTxInputs = 15;
