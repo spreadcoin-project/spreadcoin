@@ -71,7 +71,7 @@ CKeyID CElectedMasternodes::FillBlock(CBlockIndex* pindex, CCoinsViewCache &Coin
                 if (j == present)
                     continue;
 
-                if (j && masternodes.size() == g_MaxMasternodes)
+                if (j && masternodes.size() + pindex->velected[j].size() >= g_MaxMasternodes)
                     continue;
                 if (j && !MN_IsAcceptableMasternodeInput(outpoint, &Coins))
                     continue;

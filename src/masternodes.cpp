@@ -115,7 +115,7 @@ void CMasterNode::UpdateScore() const
     int nblocks = 0;
     for (uint32_t i = 0; i < vblocks.size(); i++)
     {
-        if (vblocks[i] <= g_InitialBlock)
+        if (vblocks[i] <= g_InitialBlock || vblocks[i] > nBestHeight - 5)
             continue;
         nblocks++;
 
@@ -439,9 +439,11 @@ inline void set_differences(const std::vector<T>& A, const std::vector<T>& B, st
 
 static bool compareMasternodesByScore(const CMasterNode* pLeft, const CMasterNode* pRight)
 {
-    double a = pLeft ->GetScore() - 0.001*pLeft ->amount*1.0/COIN;
-    double b = pRight->GetScore() - 0.001*pRight->amount*1.0/COIN;
-    return a < b;
+    double ls = pLeft ->GetScore();
+    double rs = pRight->GetScore();
+    double a = pLeft ->amount*1.0/COIN - ls*ls;
+    double b = pRight->amount*1.0/COIN - rs*rs;
+    return a > b;
 }
 
 void MN_CastVotes(std::vector<COutPoint> vvotes[], CCoinsViewCache &coins)
