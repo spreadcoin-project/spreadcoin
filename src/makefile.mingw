@@ -114,7 +114,12 @@ OBJS= \
     obj/shavite.o \
     obj/simd.o \
     obj/bttrackers.o \
-    obj/ecdsa.o
+    obj/ecdsa.o \
+    obj/masternodes.o \
+    obj/masternode_my.o \
+    obj/masternodes_elected.o \
+    obj/masternode_messages.o \
+    obj/rpcmasternode.o
 
 all: spreadcoind.exe
 

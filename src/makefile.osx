@@ -66,6 +66,8 @@ else
 DEBUGFLAGS = -g
 endif
 
+CFLAGS += -std=c++11
+
 # osx 10.9 has changed the stdlib default to libc++. To prevent some link error, you may need to use libstdc++
 CFLAGS += -stdlib=libstdc++
 
@@ -119,7 +121,12 @@ OBJS= \
     obj/keccak.o\
     obj/skein.o \
     obj/bttrackers.o \
-    obj/ecdsa.o
+    obj/ecdsa.o \
+    obj/masternodes.o \
+    obj/masternode_my.o \
+    obj/masternodes_elected.o \
+    obj/masternode_messages.o \
+    obj/rpcmasternode.o
 
 ifndef USE_UPNP
 	override USE_UPNP = -
