@@ -22,6 +22,25 @@ enum EColumn
     C_COUNT,
 };
 
+class MasterNodeAmountItem : public QTableWidgetItem
+{
+    int64_t amount;
+    COutPoint outpoint;
+
+public:
+    MasterNodeAmountItem(const QString& text, int64_t amount_, COutPoint outpoint_)
+        : QTableWidgetItem(text), amount(amount_), outpoint(outpoint_)
+    {}
+
+    bool operator <(const QTableWidgetItem &other) const
+    {
+        MasterNodeAmountItem* pother = ((MasterNodeAmountItem*)&other);
+        if (amount == pother->amount)
+            return outpoint < pother->outpoint;
+        return amount < pother->amount;
+    }
+};
+
 MasternodeCheckbox::MasternodeCheckbox(CKeyID keyid_, const COutPoint &outpoint_)
     : keyid(keyid_), outpoint(outpoint_)
 {
@@ -50,6 +69,8 @@ MasternodePage::MasternodePage(QWidget *parent) :
     ui->tableWidget->setHorizontalHeaderItem((int)C_CONTROL, new QTableWidgetItem(tr("Control")));
     ui->tableWidget->setHorizontalHeaderItem((int)C_SCORE,   new QTableWidgetItem(tr("Score")));
     ui->tableWidget->setHorizontalHeaderItem((int)C_NEXT_PAYMENT, new QTableWidgetItem(tr("Next Payment")));
+
+    connect(ui->updateButton, SIGNAL(pressed()), this, SLOT(updateMasternodes()));
 }
 
 MasternodePage::~MasternodePage()
@@ -124,7 +145,7 @@ void MasternodePage::updateMasternodes()
         int iRow = pTable->rowCount();
         pTable->setRowCount(iRow + 1);
         pTable->setItem(iRow, (int)C_ADDRESS, new QTableWidgetItem(address.ToString().c_str()));
-        pTable->setItem(iRow, (int)C_AMOUNT, new QTableWidgetItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, mn.amount)));
+        pTable->setItem(iRow, (int)C_AMOUNT, new MasterNodeAmountItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, mn.amount), mn.amount, mn.outpoint));
         pTable->setItem(iRow, (int)C_OUTPUT, new QTableWidgetItem(QString("%1:%2").arg(mn.outpoint.hash.ToString().c_str()).arg(mn.outpoint.n)));
         pTable->setItem(iRow, (int)C_SCORE, new QTableWidgetItem(QString("%1").arg(mn.GetScore())));
         pTable->setItem(iRow, (int)C_ELECTED, new QTableWidgetItem(QString("%1").arg(elected? tr("yes") : "")));
@@ -152,6 +173,8 @@ void MasternodePage::updateMasternodes()
             pTable->setCellWidget(iRow, (int)C_CONTROL, pWidget);
         }
     }
+
+    pTable->sortByColumn((int)C_AMOUNT, Qt::DescendingOrder);
 }
 
 void MasternodePage::switchMasternode(const CKeyID &keyid, const COutPoint &outpoint, bool state)
