@@ -3,7 +3,9 @@
 
 #include <QWidget>
 #include <QCheckBox>
+#ifndef Q_MOC_RUN // https://stackoverflow.com/questions/15455178/qt4-cgal-parse-error-at-boost-join
 #include "main.h"
+#endif
 #undef loop
 
 namespace Ui {

@@ -2,11 +2,13 @@
 #include <QCheckBox>
 #include "masternodepage.h"
 #include "ui_masternodepage.h"
+#ifndef Q_MOC_RUN // https://stackoverflow.com/questions/15455178/qt4-cgal-parse-error-at-boost-join
 #include "walletmodel.h"
 #include "util.h"
 #include "init.h"
 #include "masternodes.h"
 #include "bitcoinunits.h"
+#endif
 
 enum EColumn
 {
