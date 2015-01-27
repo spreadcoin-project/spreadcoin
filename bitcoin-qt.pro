@@ -225,6 +225,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/limitedmap.h \
     src/qt/macnotificationhandler.h \
     src/qt/splashscreen.h \
+    src/qt/intro.h \
     src/qt/qcustomplot.h \
     src/hashblock.h \
     src/sph_blake.h \
@@ -315,6 +316,7 @@ SOURCES += src/qt/bitcoin.cpp \
     src/leveldb.cpp \
     src/txdb.cpp \
     src/qt/splashscreen.cpp \
+    src/qt/intro.cpp \
     src/qt/qcustomplot.cpp \
     src/blake.c \
     src/bmw.c \
@@ -354,6 +356,7 @@ FORMS += src/qt/forms/sendcoinsdialog.ui \
     src/qt/forms/askpassphrasedialog.ui \
     src/qt/forms/rpcconsole.ui \
     src/qt/forms/optionsdialog.ui \
+    src/qt/forms/intro.ui \
     src/qt/forms/blockexplorer.ui \
     src/qt/forms/miningpage.ui
 
