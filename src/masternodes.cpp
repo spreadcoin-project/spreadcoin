@@ -25,7 +25,7 @@ static int32_t g_InitialBlock = 0;
 
 boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
 
-static std::vector<CMasterNodeInstantTxMsg> g_TxConfirms[g_InstantTxMaxConfirmations*g_InstantTxPeriod];
+static std::vector<CMasterNodeInstantTxMsg> g_TxConfirms[g_InstantTxInterval];
 
 bool MN_IsAcceptableMasternodeInput(const COutPoint& outpoint, CCoinsViewCache* pCoins)
 {
@@ -239,7 +239,7 @@ void MN_ProcessBlocks()
         pBlock->nReceiveTime = GetMontoneTimeMs();
         MN_MyProcessBlock(pBlock);
 
-        int i = pBlock->nHeight % (g_InstantTxMaxConfirmations*g_InstantTxPeriod);
+        int i = pBlock->nHeight % g_InstantTxInterval;
         g_TxConfirms[i].clear();
     }
 }
@@ -340,7 +340,7 @@ static bool ShouldConfirm(int nBlock, COutPoint outpoint)
 
 static int MN_ProcessInstantTxMsg_Impl(const CMasterNodeInstantTxMsg& mnitx, CValidationState& state)
 {
-    if (mnitx.nMnBlock > nBestHeight + 5 || mnitx.nMnBlock < nBestHeight - g_InstantTxPeriod*g_InstantTxMaxConfirmations*2)
+    if (mnitx.nMnBlock > nBestHeight + 5 || mnitx.nMnBlock < nBestHeight - g_InstantTxInterval*2)
         return state.DoS(20, error("MN_ProcessInstantTxMsg_Impl: block out of range"));
 
     if (!ShouldConfirm(mnitx.nMnBlock, mnitx.outpointTx))
@@ -357,7 +357,7 @@ static int MN_ProcessInstantTxMsg_Impl(const CMasterNodeInstantTxMsg& mnitx, CVa
     if (!mnitx.CheckSignature() || mnitx.GetOutpointKeyID() != pIndex->mnKeyId)
         return state.DoS(20, error("MN_ProcessInstantTxMsg_Impl: invalid signature"));
 
-    int i = mnitx.nMnBlock % (g_InstantTxMaxConfirmations*g_InstantTxPeriod);
+    int i = mnitx.nMnBlock % g_InstantTxInterval;
     auto& confirms = g_TxConfirms[i];
 
     if (confirms.size() > 1000)
@@ -565,12 +565,12 @@ int MN_GetNumConfirms(const CTransaction& tx)
     for (const CTxIn& txin : tx.vin)
     {
         COutPoint outpointTx = txin.prevout;
-        std::vector<int> blocks = MN_GetConfirmationBlocks(outpointTx, nBestHeight - g_InstantTxPeriod*g_InstantTxPeriod, nBestHeight);
+        std::vector<int> blocks = MN_GetConfirmationBlocks(outpointTx, nBestHeight - g_InstantTxInterval, nBestHeight);
 
         int inputConfirmations = 0;
         for (const int nBlock : blocks)
         {
-            for (const auto& confirm : g_TxConfirms[nBlock % (g_InstantTxMaxConfirmations*g_InstantTxPeriod)])
+            for (const auto& confirm : g_TxConfirms[nBlock % g_InstantTxInterval])
             {
                 if (confirm.outpointTx == outpointTx && confirm.hashTx == hashTx)
                     inputConfirmations++;

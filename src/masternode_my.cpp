@@ -142,7 +142,7 @@ void MN_MyProcessTx(const CTransaction& tx, int64_t nFees)
     for (const CTxIn& txin : tx.vin)
     {
         COutPoint outpointTx = txin.prevout;
-        std::vector<int> blocks = MN_GetConfirmationBlocks(outpointTx, nBestHeight - g_InstantTxPeriod*g_InstantTxPeriod, nBestHeight);
+        std::vector<int> blocks = MN_GetConfirmationBlocks(outpointTx, nBestHeight - g_InstantTxInterval, nBestHeight);
         for (const int nBlock : blocks)
         {
             CBlockIndex* pindex = FindBlockByHeight(nBlock);

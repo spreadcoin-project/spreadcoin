@@ -19,6 +19,7 @@ static const int g_InstantTxFeePerInput = COIN/1000;
 static const int g_InstantTxPeriod = 100;
 static const int g_InstantTxMaxConfirmations = 10;
 static const int g_InstantTxMinConfirmations = 7;
+static const int g_InstantTxInterval = g_InstantTxPeriod*g_InstantTxMaxConfirmations;
 
 class CMasterNode
 {
