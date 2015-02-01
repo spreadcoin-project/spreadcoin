@@ -10,38 +10,76 @@
 #include "bitcoinunits.h"
 #endif
 
-enum EColumn
+static bool compareMNsByAmount(const CMasterNode* pLeft, const CMasterNode* pRight)
 {
-    C_ADDRESS,
-    C_AMOUNT,
-    C_ELECTED,
-    C_NEXT_PAYMENT,
-    C_SCORE,
-    C_VOTES,
-    C_CONTROL,
-    C_OUTPUT,
+    if (pLeft->amount == pRight->amount)
+        return pLeft->GetScore() < pRight->GetScore();
 
-    C_COUNT,
-};
+    return pLeft->amount < pRight->amount;
+}
 
-class MasterNodeAmountItem : public QTableWidgetItem
+static bool compareMNsByScore(const CMasterNode* pLeft, const CMasterNode* pRight)
 {
-    int64_t amount;
-    COutPoint outpoint;
+    if (pLeft->GetScore() == pRight->GetScore())
+        return pLeft->amount < pRight->amount;
 
-public:
-    MasterNodeAmountItem(const QString& text, int64_t amount_, COutPoint outpoint_)
-        : QTableWidgetItem(text), amount(amount_), outpoint(outpoint_)
-    {}
+    return pLeft->GetScore() < pRight->GetScore();
+}
 
-    bool operator <(const QTableWidgetItem &other) const
-    {
-        MasterNodeAmountItem* pother = ((MasterNodeAmountItem*)&other);
-        if (amount == pother->amount)
-            return outpoint < pother->outpoint;
-        return amount < pother->amount;
-    }
-};
+static bool compareMNsByAddress(const CMasterNode* pLeft, const CMasterNode* pRight)
+{
+    CBitcoinAddress address0, address1;
+    address0.Set(pLeft->keyid);
+    address1.Set(pRight->keyid);
+    std::string a = address0.ToString();
+    std::string b = address1.ToString();
+
+    if (a == b)
+        return pLeft->outpoint < pRight->outpoint;
+
+    return a < b;
+}
+
+static bool compareMNsByOutpoint(const CMasterNode* pLeft, const CMasterNode* pRight)
+{
+    return pLeft->outpoint < pRight->outpoint;
+}
+
+static bool compareMNsByNextPayment(const CMasterNode* pLeft, const CMasterNode* pRight)
+{
+    if (pLeft->nextPayment == pRight->nextPayment)
+        return pLeft->amount > pRight->amount;
+
+    return pLeft->nextPayment < pRight->nextPayment;
+}
+
+static bool compareMNsByElectionStatus(const CMasterNode* pLeft, const CMasterNode* pRight)
+{
+    if (pLeft->elected == pRight->elected)
+        return pLeft->amount > pRight->amount;
+
+    return (int)pLeft->elected > (int)pRight->elected;
+}
+
+static bool compareMNsByVotes(const CMasterNode* pLeft, const CMasterNode* pRight)
+{
+    int a = pLeft->votes[!pLeft->elected];
+    int b = pRight->votes[!pRight->elected];
+    if (a == b)
+        return pLeft->amount < pRight->amount;
+
+    return a < b;
+}
+
+static bool compareMNsByControl(const CMasterNode* pLeft, const CMasterNode* pRight)
+{
+    int a = pLeft->my*2 + pLeft->secret.privkey.IsValid();
+    int b = pRight->my*2 + pRight->secret.privkey.IsValid();
+    if (a == b)
+        return pLeft->amount < pRight->amount;
+
+    return a < b;
+}
 
 MasternodeCheckbox::MasternodeCheckbox(CKeyID keyid_, const COutPoint &outpoint_)
     : keyid(keyid_), outpoint(outpoint_)
@@ -57,7 +95,9 @@ void MasternodeCheckbox::updateState(int newState)
 MasternodePage::MasternodePage(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::MasternodePage),
-    model(NULL)
+    model(NULL),
+    sortedBy(C_AMOUNT),
+    sortOrder(Qt::DescendingOrder)
 {
     ui->setupUi(this);
 
@@ -73,6 +113,7 @@ MasternodePage::MasternodePage(QWidget *parent) :
     ui->tableWidget->setHorizontalHeaderItem((int)C_NEXT_PAYMENT, new QTableWidgetItem(tr("Next Payment")));
 
     connect(ui->updateButton, SIGNAL(pressed()), this, SLOT(updateMasternodes()));
+    connect(ui->tableWidget->horizontalHeader(), SIGNAL(sectionClicked(int)), this, SLOT(headerClicked(int)));
 }
 
 MasternodePage::~MasternodePage()
@@ -115,7 +156,31 @@ void MasternodePage::updateMasternodes()
     QTableWidget* pTable = ui->tableWidget;
     pTable->setRowCount(0);
 
-    boost::unordered_map<COutPoint, int> paymentIn;
+    MN_Cleanup();
+
+    // ensure that elected masternodes are listed
+    for (COutPoint outpoint : g_ElectedMasternodes.masternodes)
+        MN_Get(outpoint);
+
+    std::vector<const CMasterNode*> masternodes;
+    for (std::pair<const COutPoint, CMasterNode>& pair : g_MasterNodes)
+    {
+        CMasterNode* pmn = &pair.second;
+        masternodes.push_back(pmn);
+
+        for (int i = 0; i < 2; i++)
+        {
+            pmn->votes[i] = 0;
+            auto iter = vvotes[i].find(pmn->outpoint);
+            if (iter != vvotes[i].end())
+            {
+                pmn->votes[i] = iter->second;
+            }
+        }
+        pmn->elected = g_ElectedMasternodes.IsElected(pmn->outpoint);
+        pmn->nextPayment = 999999;
+    }
+
     COutPoint curPayment = pindexBest->mn;
     for (unsigned int i = 0; i < g_ElectedMasternodes.masternodes.size(); i++)
     {
@@ -124,22 +189,36 @@ void MasternodePage::updateMasternodes()
         if (!g_ElectedMasternodes.NextPayee(curPayment, nullptr, keyid, outpoint))
             break;
         curPayment = outpoint;
-        paymentIn[curPayment] = i + 1;
+        CMasterNode* pmn = MN_Get(outpoint);
+        if (pmn)
+            pmn->nextPayment = i + 1;
     }
 
-    MN_Cleanup();
-
-    for (const std::pair<COutPoint, CMasterNode>& pair : g_MasterNodes)
+    bool (*compare)(const CMasterNode* pLeft, const CMasterNode* pRight) = nullptr;
+    switch (sortedBy)
     {
-        const CMasterNode& mn = pair.second;
+    case C_AMOUNT:       compare = compareMNsByAmount;         break;
+    case C_OUTPUT:       compare = compareMNsByOutpoint;       break;
+    case C_SCORE:        compare = compareMNsByScore;          break;
+    case C_ADDRESS:      compare = compareMNsByAddress;        break;
+    case C_NEXT_PAYMENT: compare = compareMNsByNextPayment;    break;
+    case C_ELECTED:      compare = compareMNsByElectionStatus; break;
+    case C_VOTES:        compare = compareMNsByVotes;          break;
+    case C_CONTROL:      compare = compareMNsByControl;        break;
+    case C_COUNT:        break;
+    }
+    if (compare)
+        std::sort(masternodes.begin(), masternodes.end(), compare);
 
-        bool elected = g_ElectedMasternodes.IsElected(mn.outpoint);
-        int votes = 0;
-        auto iter = vvotes[!elected].find(mn.outpoint);
-        if (iter != vvotes[!elected].end())
-        {
-            votes = iter->second;
-        }
+    if (sortOrder == Qt::DescendingOrder)
+        std::reverse(masternodes.begin(), masternodes.end());
+
+    for (const CMasterNode* pmn : masternodes)
+    {
+        const CMasterNode& mn = *pmn;
+
+        bool elected = mn.elected;
+        int votes = mn.votes[!mn.elected];
 
         CBitcoinAddress address;
         address.Set(mn.keyid);
@@ -147,15 +226,14 @@ void MasternodePage::updateMasternodes()
         int iRow = pTable->rowCount();
         pTable->setRowCount(iRow + 1);
         pTable->setItem(iRow, (int)C_ADDRESS, new QTableWidgetItem(address.ToString().c_str()));
-        pTable->setItem(iRow, (int)C_AMOUNT, new MasterNodeAmountItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, mn.amount), mn.amount, mn.outpoint));
+        pTable->setItem(iRow, (int)C_AMOUNT, new QTableWidgetItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, mn.amount)));
         pTable->setItem(iRow, (int)C_OUTPUT, new QTableWidgetItem(QString("%1:%2").arg(mn.outpoint.hash.ToString().c_str()).arg(mn.outpoint.n)));
         pTable->setItem(iRow, (int)C_SCORE, new QTableWidgetItem(QString("%1").arg(mn.GetScore())));
         pTable->setItem(iRow, (int)C_ELECTED, new QTableWidgetItem(QString("%1").arg(elected? tr("yes") : "")));
         pTable->setItem(iRow, (int)C_VOTES, new QTableWidgetItem(QString("%1%").arg(votes*100.0/g_MasternodesElectionPeriod)));
 
-        auto iterPaymentIn = paymentIn.find(mn.outpoint);
-        if (iterPaymentIn != paymentIn.end())
-            pTable->setItem(iRow, (int)C_NEXT_PAYMENT, new QTableWidgetItem(QString("%1 min").arg(iterPaymentIn->second)));
+        if (mn.nextPayment < 10000)
+            pTable->setItem(iRow, (int)C_NEXT_PAYMENT, new QTableWidgetItem(QString("%1 min").arg(mn.nextPayment)));
         else
             pTable->setItem(iRow, (int)C_NEXT_PAYMENT, new QTableWidgetItem(QString("")));
 
@@ -175,8 +253,6 @@ void MasternodePage::updateMasternodes()
             pTable->setCellWidget(iRow, (int)C_CONTROL, pWidget);
         }
     }
-
-    pTable->sortByColumn((int)C_AMOUNT, Qt::DescendingOrder);
 }
 
 void MasternodePage::switchMasternode(const CKeyID &keyid, const COutPoint &outpoint, bool state)
@@ -195,4 +271,17 @@ void MasternodePage::switchMasternode(const CKeyID &keyid, const COutPoint &outp
         }
         MN_Start(outpoint, CMasterNodeSecret(key));
     }
+}
+
+void MasternodePage::headerClicked(int section)
+{
+    EColumn column = (EColumn)section;
+    if (column == sortedBy)
+        sortOrder = (Qt::SortOrder)!(bool)sortOrder;
+    else
+    {
+        sortOrder = Qt::AscendingOrder;
+        sortedBy = column;
+    }
+    updateMasternodes();
 }

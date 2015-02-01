@@ -37,6 +37,21 @@ class MasternodePage : public QWidget
 {
     Q_OBJECT
 
+    enum EColumn
+    {
+        C_ADDRESS,
+        C_AMOUNT,
+        C_ELECTED,
+        C_NEXT_PAYMENT,
+        C_SCORE,
+        C_VOTES,
+        C_CONTROL,
+        C_OUTPUT,
+
+        C_COUNT,
+    };
+
+
 public:
     explicit MasternodePage(QWidget *parent = 0);
     ~MasternodePage();
@@ -48,14 +63,14 @@ protected:
 
 private:
     Ui::MasternodePage *ui;
-
     WalletModel *model;
-
+    EColumn sortedBy;
+    Qt::SortOrder sortOrder;
 
 private slots:
-
     void updateMasternodes();
     void switchMasternode(const CKeyID &keyid, const COutPoint &outpoint, bool state);
+    void headerClicked(int section);
 };
 
 #endif // MASTERNODEPAGE_H

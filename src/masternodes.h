@@ -62,6 +62,11 @@ public:
     // Which blocks should be signed by this masternode to prove that it is running
     std::vector<int> GetExistenceBlocks() const;
 
+    // Data for display/output info
+    int nextPayment;
+    int votes[2];
+    bool elected;
+
     bool AddExistenceMsg(const CMasterNodeExistenceMsg& msg, CValidationState &state);
 };
 
