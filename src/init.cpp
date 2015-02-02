@@ -11,6 +11,7 @@
 #include "util.h"
 #include "ui_interface.h"
 #include "masternode_my.h"
+#include "masternodes_elected.h"
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -417,6 +418,7 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
     if (fReindex) {
         CImportingNow imp;
         int nFile = 0;
+        g_ElectedMasternodes.masternodes.clear();
         while (true) {
             CDiskBlockPos pos(nFile, 0);
             FILE *file = OpenBlockFile(pos, true);
