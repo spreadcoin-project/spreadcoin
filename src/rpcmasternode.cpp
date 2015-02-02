@@ -79,3 +79,53 @@ Value mnstop(const Array& params, bool fHelp)
 
     return MN_Stop(outpoint);
 }
+
+Value mnlist(const Array& params, bool fHelp)
+{
+    if (fHelp || (params.size() != 0 && params.size() != 1))
+        throw runtime_error(
+            "mnlist [known|elected|running]\n"
+            "List masternodes.");
+
+    std::string set = "known";
+    if (params.size() == 1)
+        set = params[0].get_str();
+
+    std::vector<const CMasterNode*> masternodes;
+    MN_GetAll(masternodes);
+
+    Array array;
+    for (const CMasterNode* pmn : masternodes)
+    {
+        if (set == "elected" && !pmn->elected)
+            continue;
+
+        if (set == "running" && !pmn->IsRunning())
+            continue;
+
+        Object obj;
+
+        CBitcoinAddress address;
+        address.Set(pmn->keyid);
+
+        obj.push_back(Pair("amount", ValueFromAmount(pmn->amount)));
+        obj.push_back(Pair("elected", (bool)pmn->elected));
+        obj.push_back(Pair("running", (bool)pmn->IsRunning()));
+        obj.push_back(Pair("address", address.ToString()));
+        if (pmn->nextPayment < 2*g_MaxMasternodes)
+            obj.push_back(Pair("next_payment", pmn->nextPayment));
+
+        obj.push_back(Pair("votes_neg", pmn->votes[0]));
+        obj.push_back(Pair("votes_pos", pmn->votes[1]));
+
+        Object outpoint;
+        outpoint.push_back(Pair("hash", pmn->outpoint.hash.ToString()));
+        outpoint.push_back(Pair("n", (int64_t)pmn->outpoint.n));
+
+        obj.push_back(Pair("outpoint", outpoint));
+
+        array.push_back(obj);
+    }
+
+    return array;
+}

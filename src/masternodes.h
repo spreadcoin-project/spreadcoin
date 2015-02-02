@@ -68,6 +68,11 @@ public:
     bool elected;
 
     bool AddExistenceMsg(const CMasterNodeExistenceMsg& msg, CValidationState &state);
+
+    bool IsRunning() const
+    {
+        return secret.privkey.IsValid();
+    }
 };
 
 // All these variables and functions require locking cs_main.
@@ -76,6 +81,7 @@ public:
 extern boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
 
 CMasterNode* MN_Get(const COutPoint& outpoint);
+void MN_GetAll(std::vector<const CMasterNode*>& masternodes);
 
 bool MN_IsAcceptableMasternodeInput(const COutPoint& outpoint, CCoinsViewCache *pCoins);
 bool MN_GetKeyIDAndAmount(const COutPoint& outpoint, CKeyID& keyid, uint64_t& amount, CCoinsViewCache* pCoins, bool AllowUnconfirmed = false);

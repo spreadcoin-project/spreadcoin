@@ -73,8 +73,8 @@ static bool compareMNsByVotes(const CMasterNode* pLeft, const CMasterNode* pRigh
 
 static bool compareMNsByControl(const CMasterNode* pLeft, const CMasterNode* pRight)
 {
-    int a = pLeft->my*2 + pLeft->secret.privkey.IsValid();
-    int b = pRight->my*2 + pRight->secret.privkey.IsValid();
+    int a = pLeft->my*2 + pLeft->IsRunning();
+    int b = pRight->my*2 + pRight->IsRunning();
     if (a == b)
         return pLeft->amount < pRight->amount;
 
@@ -150,49 +150,8 @@ void MasternodePage::updateMasternodes()
         }
     }
 
-    boost::unordered_map<COutPoint, int> vvotes[2];
-    MN_GetVotes(pindexBest, vvotes);
-
-    QTableWidget* pTable = ui->tableWidget;
-    pTable->setRowCount(0);
-
-    MN_Cleanup();
-
-    // ensure that elected masternodes are listed
-    for (COutPoint outpoint : g_ElectedMasternodes.masternodes)
-        MN_Get(outpoint);
-
     std::vector<const CMasterNode*> masternodes;
-    for (std::pair<const COutPoint, CMasterNode>& pair : g_MasterNodes)
-    {
-        CMasterNode* pmn = &pair.second;
-        masternodes.push_back(pmn);
-
-        for (int i = 0; i < 2; i++)
-        {
-            pmn->votes[i] = 0;
-            auto iter = vvotes[i].find(pmn->outpoint);
-            if (iter != vvotes[i].end())
-            {
-                pmn->votes[i] = iter->second;
-            }
-        }
-        pmn->elected = g_ElectedMasternodes.IsElected(pmn->outpoint);
-        pmn->nextPayment = 999999;
-    }
-
-    COutPoint curPayment = pindexBest->mn;
-    for (unsigned int i = 0; i < g_ElectedMasternodes.masternodes.size(); i++)
-    {
-        COutPoint outpoint;
-        CKeyID keyid;
-        if (!g_ElectedMasternodes.NextPayee(curPayment, nullptr, keyid, outpoint))
-            break;
-        curPayment = outpoint;
-        CMasterNode* pmn = MN_Get(outpoint);
-        if (pmn)
-            pmn->nextPayment = i + 1;
-    }
+    MN_GetAll(masternodes);
 
     bool (*compare)(const CMasterNode* pLeft, const CMasterNode* pRight) = nullptr;
     switch (sortedBy)
@@ -213,6 +172,9 @@ void MasternodePage::updateMasternodes()
     if (sortOrder == Qt::DescendingOrder)
         std::reverse(masternodes.begin(), masternodes.end());
 
+    QTableWidget* pTable = ui->tableWidget;
+    pTable->setRowCount(0);
+
     for (const CMasterNode* pmn : masternodes)
     {
         const CMasterNode& mn = *pmn;
@@ -232,7 +194,7 @@ void MasternodePage::updateMasternodes()
         pTable->setItem(iRow, (int)C_ELECTED, new QTableWidgetItem(QString("%1").arg(elected? tr("yes") : "")));
         pTable->setItem(iRow, (int)C_VOTES, new QTableWidgetItem(QString("%1%").arg(votes*100.0/g_MasternodesElectionPeriod)));
 
-        if (mn.nextPayment < 10000)
+        if (mn.nextPayment < 2*g_MaxMasternodes)
             pTable->setItem(iRow, (int)C_NEXT_PAYMENT, new QTableWidgetItem(QString("%1 min").arg(mn.nextPayment)));
         else
             pTable->setItem(iRow, (int)C_NEXT_PAYMENT, new QTableWidgetItem(QString("")));
@@ -240,7 +202,7 @@ void MasternodePage::updateMasternodes()
         if (mn.my)
         {
             MasternodeCheckbox* pButton = new MasternodeCheckbox(mn.keyid, mn.outpoint);
-            pButton->setChecked(mn.secret.privkey.IsValid());
+            pButton->setChecked(mn.IsRunning());
             connect(pButton, SIGNAL(switchMasternode(const CKeyID&, const COutPoint&, bool)), this, SLOT(switchMasternode(const CKeyID&, const COutPoint&, bool)));
 
             QWidget *pWidget = new QWidget();

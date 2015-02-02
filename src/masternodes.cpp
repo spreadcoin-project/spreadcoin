@@ -587,3 +587,46 @@ bool MN_CheckInstantTx(const CInstantTx& tx)
 {
     return false;
 }
+
+void MN_GetAll(std::vector<const CMasterNode*>& masternodes)
+{
+    boost::unordered_map<COutPoint, int> vvotes[2];
+    MN_GetVotes(pindexBest, vvotes);
+
+    MN_Cleanup();
+
+    // ensure that elected masternodes are listed
+    for (COutPoint outpoint : g_ElectedMasternodes.masternodes)
+        MN_Get(outpoint);
+
+    for (std::pair<const COutPoint, CMasterNode>& pair : g_MasterNodes)
+    {
+        CMasterNode* pmn = &pair.second;
+        masternodes.push_back(pmn);
+
+        for (int i = 0; i < 2; i++)
+        {
+            pmn->votes[i] = 0;
+            auto iter = vvotes[i].find(pmn->outpoint);
+            if (iter != vvotes[i].end())
+            {
+                pmn->votes[i] = iter->second;
+            }
+        }
+        pmn->elected = g_ElectedMasternodes.IsElected(pmn->outpoint);
+        pmn->nextPayment = 999999;
+    }
+
+    COutPoint curPayment = pindexBest->mn;
+    for (unsigned int i = 0; i < g_ElectedMasternodes.masternodes.size(); i++)
+    {
+        COutPoint outpoint;
+        CKeyID keyid;
+        if (!g_ElectedMasternodes.NextPayee(curPayment, nullptr, keyid, outpoint))
+            break;
+        curPayment = outpoint;
+        CMasterNode* pmn = MN_Get(outpoint);
+        if (pmn)
+            pmn->nextPayment = i + 1;
+    }
+}

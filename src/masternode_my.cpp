@@ -115,7 +115,7 @@ void MN_MyProcessBlock(const CBlockIndex* pBlock)
     for (COutPoint outpoint : g_OurMasterNodes)
     {
         CMasterNode& mn = g_MasterNodes[outpoint];
-        assert (mn.secret.privkey.IsValid());
+        assert (mn.IsRunning());
 
         std::vector<int> vblocks = mn.GetExistenceBlocks();
         if (std::find(vblocks.begin(), vblocks.end(), pBlock->nHeight) == vblocks.end())
@@ -150,7 +150,7 @@ void MN_MyProcessTx(const CTransaction& tx, int64_t nFees)
                 continue;
 
             CMasterNode* pmn = MN_Get(pindex->mn);
-            if (!pmn || !pmn->secret.privkey.IsValid())
+            if (!pmn || !pmn->IsRunning())
                 continue;
 
             CMasterNodeInstantTxMsg mnitx;
