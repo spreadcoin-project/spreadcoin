@@ -215,6 +215,14 @@ void MasternodePage::updateMasternodes()
             pTable->setCellWidget(iRow, (int)C_CONTROL, pWidget);
         }
     }
+
+    int n = 0;
+    for (const CMasterNode* pmn : masternodes)
+    {
+        n += pmn->elected;
+    }
+
+    ui->labelMasternodes->setText(tr("Masternodes (%1):").arg(n));
 }
 
 void MasternodePage::switchMasternode(const CKeyID &keyid, const COutPoint &outpoint, bool state)
