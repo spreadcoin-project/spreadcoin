@@ -1497,20 +1497,10 @@ CBufferStream<88> CBlockHeader::SerializeHeaderForHash1() const
 
 CBufferStream<185> CBlockHeader::SerializeHeaderForHash2() const
 {
-    uint256 hashContent = hashMerkleRoot;
-    if (nHeight > getThirdHardforkBlock())
-    {
-        CHashWriter hasher(SER_GETHASH, 0);
-        hasher << hashMerkleRoot;
-        hasher << vvotes[0];
-        hasher << vvotes[1];
-        hashContent = hasher.GetHash();
-    }
-
     CBufferStream<185> Header(SER_GETHASH, 0);
     Header << nVersion;
     Header << hashPrevBlock;
-    Header << hashContent;
+    Header << hashMerkleRoot;
     Header << nTime;
     Header << nBits;
     Header << nHeight;
@@ -2506,6 +2496,8 @@ bool CBlock::AddToBlockIndex(CValidationState &state, const CDiskBlockPos &pos)
     pindexNew->nDataPos = pos.nPos;
     pindexNew->nUndoPos = 0;
     pindexNew->nStatus = BLOCK_VALID_TRANSACTIONS | BLOCK_HAVE_DATA;
+    pindexNew->vvotes[0] = vvotes[0];
+    pindexNew->vvotes[1] = vvotes[1];
     setBlockIndexValid.insert(pindexNew);
 
     if (!pblocktree->WriteBlockIndex(CDiskBlockIndex(pindexNew)))
@@ -3273,7 +3265,7 @@ static CBlock getGenesisBlock()
     block.hashPrevBlock = 0;
     block.hashMerkleRoot = block.BuildMerkleTree();
     block.nVersion = 1;
-    block.nTime    = fTestNet? 1406620001 : 1406620000;
+    block.nTime    = fTestNet? 1406620002 : 1406620000;
     block.nBits    = bnProofOfWorkLimit.GetCompact();
     block.nHeight  = 0;
 

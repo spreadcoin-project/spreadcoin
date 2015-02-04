@@ -1331,9 +1331,6 @@ public:
     uint256 hashWholeBlock; // proof of whole block knowledge
     CSignature MinerSignature; // proof of private key knowledge
 
-    // Masternode votes:
-    std::vector<COutPoint> vvotes[2];
-
     CBlockHeader()
     {
         SetNull();
@@ -1353,11 +1350,6 @@ public:
         {
             READWRITE(hashWholeBlock);
             READWRITE(MinerSignature);
-        }
-        if (nHeight > getThirdHardforkBlock())
-        {
-            READWRITE(vvotes[0]);
-            READWRITE(vvotes[1]);
         }
     )
 
@@ -1409,6 +1401,9 @@ public:
     // network and disk
     std::vector<CTransaction> vtx;
 
+    // Masternode votes:
+    std::vector<COutPoint> vvotes[2];
+
     // memory only
     mutable CScript payee;
     mutable std::vector<uint256> vMerkleTree;
@@ -1427,6 +1422,11 @@ public:
     IMPLEMENT_SERIALIZE
     (
         READWRITE(*(CBlockHeader*)this);
+        if (nHeight > getThirdHardforkBlock())
+        {
+            READWRITE(vvotes[0]);
+            READWRITE(vvotes[1]);
+        }
         READWRITE(vtx);
     )
 
@@ -1434,6 +1434,8 @@ public:
     {
         CBlockHeader::SetNull();
         vtx.clear();
+        vvotes[0].clear();
+        vvotes[1].clear();
         vMerkleTree.clear();
         payee = CScript();
     }
@@ -1830,8 +1832,10 @@ public:
         nBits          = block.nBits;
         nNonce         = block.nNonce;
         MinerSignature = block.MinerSignature;
-        vvotes[0]      = block.vvotes[0];
-        vvotes[1]      = block.vvotes[1];
+        vvotes[0].clear();
+        vvotes[1].clear();
+        velected[0].clear();
+        velected[1].clear();
     }
 
     CDiskBlockPos GetBlockPos() const {
@@ -1865,8 +1869,6 @@ public:
         block.nHeight        = nHeight;
         block.nNonce         = nNonce;
         block.MinerSignature = MinerSignature;
-        block.vvotes[0]      = vvotes[0];
-        block.vvotes[1]      = vvotes[1];
         return block;
     }
 
