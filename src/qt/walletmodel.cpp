@@ -8,6 +8,9 @@
 #include "wallet.h"
 #include "walletdb.h" // for BackupWallet
 #include "base58.h"
+#ifndef Q_MOC_RUN // https://stackoverflow.com/questions/15455178/qt4-cgal-parse-error-at-boost-join
+#include "masternode_my.h"
+#endif
 
 #include <QSet>
 #include <QTimer>
@@ -15,7 +18,7 @@
 WalletModel::WalletModel(CWallet *wallet, OptionsModel *optionsModel, QObject *parent) :
     QObject(parent), wallet(wallet), optionsModel(optionsModel), addressTableModel(0),
     transactionTableModel(0),
-    cachedBalance(0), cachedUnconfirmedBalance(0), cachedImmatureBalance(0),
+    cachedBalance(0), cachedUnconfirmedBalance(0), cachedImmatureBalance(0), cachedLockedBalance(0),
     cachedNumTransactions(0),
     cachedEncryptionStatus(Unencrypted),
     cachedNumBlocks(0)
@@ -62,6 +65,11 @@ qint64 WalletModel::getImmatureBalance() const
     return wallet->GetImmatureBalance();
 }
 
+qint64 WalletModel::getLockedBalance() const
+{
+    return wallet->GetLockedBalance();
+}
+
 int WalletModel::getNumTransactions() const
 {
     int numTransactions = 0;
@@ -84,10 +92,11 @@ void WalletModel::updateStatus()
 
 void WalletModel::pollBalanceChanged()
 {
-    if(nBestHeight != cachedNumBlocks)
+    if(nBestHeight != cachedNumBlocks || g_OurMasternodesXor != cachedOurMasternodesXor)
     {
         // Balance and number of transactions might have changed
         cachedNumBlocks = nBestHeight;
+        cachedOurMasternodesXor = g_OurMasternodesXor;
         checkBalanceChanged();
     }
 }
@@ -97,13 +106,15 @@ void WalletModel::checkBalanceChanged()
     qint64 newBalance = getBalance();
     qint64 newUnconfirmedBalance = getUnconfirmedBalance();
     qint64 newImmatureBalance = getImmatureBalance();
+    qint64 newLockedBalance = getLockedBalance();
 
-    if(cachedBalance != newBalance || cachedUnconfirmedBalance != newUnconfirmedBalance || cachedImmatureBalance != newImmatureBalance)
+    if(cachedBalance != newBalance || cachedUnconfirmedBalance != newUnconfirmedBalance || cachedImmatureBalance != newImmatureBalance || cachedLockedBalance != newLockedBalance)
     {
         cachedBalance = newBalance;
         cachedUnconfirmedBalance = newUnconfirmedBalance;
         cachedImmatureBalance = newImmatureBalance;
-        emit balanceChanged(newBalance, newUnconfirmedBalance, newImmatureBalance);
+        cachedLockedBalance = newLockedBalance;
+        emit balanceChanged(newBalance, newUnconfirmedBalance, newImmatureBalance, newLockedBalance);
     }
 }
 

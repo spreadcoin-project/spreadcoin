@@ -25,3 +25,5 @@ void MN_StartFromConfig();
 // Process network events
 void MN_MyProcessBlock(const CBlockIndex* pBlock);
 void MN_MyProcessTx(const CTransaction& tx, int64_t nFees);
+
+extern uint256 g_OurMasternodesXor;

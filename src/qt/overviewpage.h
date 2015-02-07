@@ -30,7 +30,7 @@ public:
     void updatePlot();
 
 public slots:
-    void setBalance(qint64 balance, qint64 unconfirmedBalance, qint64 immatureBalance);
+    void setBalance(qint64 balance, qint64 unconfirmedBalance, qint64 immatureBalance, qint64 lockedBalance);
 
 signals:
     void transactionClicked(const QModelIndex &index);
@@ -43,6 +43,7 @@ private:
     qint64 currentBalance;
     qint64 currentUnconfirmedBalance;
     qint64 currentImmatureBalance;
+    qint64 currentLockedBalance;
     QVector<double> vX;
     QVector<double> vY;
 

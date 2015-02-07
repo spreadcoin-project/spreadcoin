@@ -964,6 +964,19 @@ int64 CWallet::GetImmatureBalance() const
     return nTotal;
 }
 
+int64 CWallet::GetLockedBalance() const
+{
+    int64 nTotal = 0;
+    {
+        LOCK(cs_wallet);
+        for (COutPoint outpoint : setLockedCoins)
+        {
+            nTotal += mapWallet.at(outpoint.hash).vout[outpoint.n].nValue;
+        }
+    }
+    return nTotal;
+}
+
 // populate vCoins with vector of spendable COutputs
 void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const CCoinControl *coinControl) const
 {

@@ -6,6 +6,7 @@
 #include <map>
 
 #include "allocators.h" /* for SecureString */
+#include "uint256.h"
 
 class OptionsModel;
 class AddressTableModel;
@@ -66,6 +67,7 @@ public:
     qint64 getBalance(const CCoinControl *coinControl=NULL) const;
     qint64 getUnconfirmedBalance() const;
     qint64 getImmatureBalance() const;
+    qint64 getLockedBalance() const;
     int getNumTransactions() const;
     EncryptionStatus getEncryptionStatus() const;
 
@@ -140,9 +142,11 @@ private:
     qint64 cachedBalance;
     qint64 cachedUnconfirmedBalance;
     qint64 cachedImmatureBalance;
+    qint64 cachedLockedBalance;
     qint64 cachedNumTransactions;
     EncryptionStatus cachedEncryptionStatus;
     int cachedNumBlocks;
+    uint256 cachedOurMasternodesXor;
 
     QTimer *pollTimer;
 
@@ -152,7 +156,7 @@ private:
 
 signals:
     // Signal that balance in wallet changed
-    void balanceChanged(qint64 balance, qint64 unconfirmedBalance, qint64 immatureBalance);
+    void balanceChanged(qint64 balance, qint64 unconfirmedBalance, qint64 immatureBalance, qint64 lockedBalance);
 
     // Number of transactions in wallet changed
     void numTransactionsChanged(int count);

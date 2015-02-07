@@ -13,8 +13,8 @@ extern json_spirit::Value GetNetworkHashPS(int lookup, int height);
 MiningPage::MiningPage(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::MiningPage),
-    hasMiningprivkey(false),
-    model(NULL)
+    model(NULL),
+    hasMiningprivkey(false)
 {
     ui->setupUi(this);
 

@@ -5,6 +5,7 @@
 #include "init.h"
 
 static boost::unordered_set<COutPoint> g_OurMasterNodes;
+uint256 g_OurMasternodesXor;
 
 CMasterNodeSecret::CMasterNodeSecret(CKey privkey)
 {
@@ -45,6 +46,7 @@ bool MN_Start(const COutPoint& outpoint, const CMasterNodeSecret& secret)
     pmn->my = true;
     pmn->secret = secret;
     g_OurMasterNodes.insert(outpoint);
+    g_OurMasternodesXor ^= outpoint.GetHash();
     return true;
 }
 
@@ -82,6 +84,7 @@ bool MN_Stop(const COutPoint& outpoint)
 
     pmn->secret.privkey = CKey();
     g_OurMasterNodes.erase(outpoint);
+    g_OurMasternodesXor ^= outpoint.GetHash();
 
     {
         LOCK(pwalletMain->cs_wallet);
