@@ -26,6 +26,7 @@ static int32_t g_InitialBlock = 0;
 boost::unordered_map<COutPoint, CMasterNode> g_MasterNodes;
 
 static std::vector<CMasterNodeInstantTxMsg> g_TxConfirms[g_InstantTxInterval];
+uint64_t g_LastInstantTxConfirmationHash;
 
 bool MN_IsAcceptableMasternodeInput(const COutPoint& outpoint, CCoinsViewCache* pCoins)
 {
@@ -370,10 +371,13 @@ static int MN_ProcessInstantTxMsg_Impl(const CMasterNodeInstantTxMsg& mnitx, CVa
             return state.Invalid(error("MN_ProcessInstantTxMsg_Impl: already have"));
     }
 
+
+    confirms.push_back(mnitx);
+    g_LastInstantTxConfirmationHash = mnitx.GetHash().Get64();
+
     printf("Masternode instant tx message mn=%s:%u, block=%i, %s:%u -> %s\n", mnitx.outpoint.hash.ToString().c_str(), mnitx.outpoint.n,
            mnitx.nMnBlock, mnitx.outpointTx.hash.GetHex().c_str(), mnitx.outpointTx.n, mnitx.hashTx.GetHex().c_str());
 
-    confirms.push_back(mnitx);
     return true;
 }
 

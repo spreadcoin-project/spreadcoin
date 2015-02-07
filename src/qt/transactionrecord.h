@@ -15,7 +15,7 @@ class TransactionStatus
 public:
     TransactionStatus():
         confirmed(false), sortKey(""), maturity(Mature),
-        matures_in(0), status(Offline), depth(0), open_for(0), mn_confirms(0), mn_confirmed(false), cur_num_blocks(-1)
+        matures_in(0), status(Offline), depth(0), open_for(0), mn_confirms(0), mn_confirmed(false), cur_num_blocks(-1), mn_last_confirm(0)
     { }
 
     enum Maturity
@@ -57,6 +57,9 @@ public:
 
     /** Current number of blocks (to know whether cached status is still valid) */
     int cur_num_blocks;
+
+    /** Hash of the last instant tx confirmation (to know whether cached status is still valid) */
+    uint64_t mn_last_confirm;
 };
 
 /** UI model for a transaction. A core transaction can be represented by multiple UI transactions if it has

@@ -106,6 +106,7 @@ bool MN_CanBeInstantTx(const CTransaction& tx, int64_t nFees);
 std::vector<int> MN_GetConfirmationBlocks(COutPoint outpoint, int nBlockBegin, int nBlockEnd);
 int MN_GetNumConfirms(const CTransaction& tx);
 bool MN_CheckInstantTx(const CInstantTx& tx);
+extern uint64_t g_LastInstantTxConfirmationHash;
 
 // Info
 void MN_GetVotes(CBlockIndex* pindex, boost::unordered_map<COutPoint, int> vvotes[2]);
