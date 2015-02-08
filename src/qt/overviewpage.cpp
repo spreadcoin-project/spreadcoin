@@ -245,7 +245,7 @@ void OverviewPage::setClientModel(ClientModel *model)
     {
         // Show warning if this is a prerelease version
         connect(model, SIGNAL(alertsChanged(QString)), this, SLOT(updateAlerts(QString)));
-        updateAlerts("This is testnet"/* FIXME: model->getStatusBarWarnings() */);
+        updateAlerts(fTestNet? "This is testnet" : model->getStatusBarWarnings());
     }
 }
 
