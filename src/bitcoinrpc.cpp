@@ -281,6 +281,7 @@ static const CRPCCommand vRPCCommands[] =
     { "mnstart",                &mnstart,                false,     false,      false },
     { "mnstop",                 &mnstop,                 false,     false,      false },
     { "mnlist",                 &mnlist,                 false,     false,      false },
+    { "mnmy",                   &mnmy,                   false,     false,      true },
 };
 
 CRPCTable::CRPCTable()

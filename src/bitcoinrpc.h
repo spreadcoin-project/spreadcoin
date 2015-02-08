@@ -215,5 +215,6 @@ extern json_spirit::Value mnsecret(const json_spirit::Array& params, bool fHelp)
 extern json_spirit::Value mnstart(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value mnstop(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value mnlist(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value mnmy(const json_spirit::Array& params, bool fHelp);
 
 #endif

@@ -80,27 +80,16 @@ Value mnstop(const Array& params, bool fHelp)
     return MN_Stop(outpoint);
 }
 
-Value mnlist(const Array& params, bool fHelp)
+static Array MasternodesToArray(const std::vector<const CMasterNode*>& masternodes, bool onlyElected = false, bool onlyRunning = false)
 {
-    if (fHelp || (params.size() != 0 && params.size() != 1))
-        throw runtime_error(
-            "mnlist [known|elected|running]\n"
-            "List masternodes.");
-
-    std::string set = "known";
-    if (params.size() == 1)
-        set = params[0].get_str();
-
-    std::vector<const CMasterNode*> masternodes;
-    MN_GetAll(masternodes);
-
     Array array;
+
     for (const CMasterNode* pmn : masternodes)
     {
-        if (set == "elected" && !pmn->elected)
+        if (onlyElected && !pmn->elected)
             continue;
 
-        if (set == "running" && !pmn->IsRunning())
+        if (onlyRunning && !pmn->IsRunning())
             continue;
 
         Object obj;
@@ -128,4 +117,58 @@ Value mnlist(const Array& params, bool fHelp)
     }
 
     return array;
+}
+
+Value mnmy(const Array& params, bool fHelp)
+{
+    if (fHelp || (params.size() != 0 && params.size() != 1))
+        throw runtime_error(
+            "mnmy\n"
+            "List my masternodes.");
+
+    LOCK(pwalletMain->cs_wallet);
+
+    std::vector<COutput> vCoins;
+    pwalletMain->AvailableCoins(vCoins, true, true);
+
+    std::vector<const CMasterNode*> masternodes;
+
+    BOOST_FOREACH(COutput& out, vCoins)
+    {
+        COutPoint outpoint(out.tx->GetHash(), out.i);
+        const CMasterNode* pmn = MN_SetMy(outpoint, true);
+        if (pmn)
+            masternodes.push_back(pmn);
+    }
+
+    return MasternodesToArray(masternodes);
+}
+
+Value mnlist(const Array& params, bool fHelp)
+{
+    const char* pusage =
+            "mnlist [known|elected|running]\n"
+            "List masternodes.";
+
+    if (fHelp || (params.size() != 0 && params.size() != 1))
+        throw runtime_error(pusage);
+
+    if (pwalletMain)
+    {
+        std::vector<COutput> vCoins;
+        pwalletMain->AvailableCoins(vCoins, true, true);
+
+    }
+
+    std::string set = "known";
+    if (params.size() == 1)
+        set = params[0].get_str();
+
+    if (set != "known" && set != "elected" && set != "running")
+        throw runtime_error(pusage);
+
+    std::vector<const CMasterNode*> masternodes;
+    MN_GetAll(masternodes);
+
+    return MasternodesToArray(masternodes, set == "elected", set == "running");
 }

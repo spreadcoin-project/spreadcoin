@@ -424,19 +424,8 @@ void WalletModel::getOutputs(const std::vector<COutPoint>& vOutpoints, std::vect
 void WalletModel::listCoins(std::map<QString, std::vector<COutput> >& mapCoins) const
 {
     std::vector<COutput> vCoins;
-    wallet->AvailableCoins(vCoins);
-    
-    std::vector<COutPoint> vLockedCoins;
-    wallet->ListLockedCoins(vLockedCoins);
-    
-    // add locked coins
-    BOOST_FOREACH(const COutPoint& outpoint, vLockedCoins)
-    {
-        if (!wallet->mapWallet.count(outpoint.hash)) continue;
-        COutput out(&wallet->mapWallet[outpoint.hash], outpoint.n, wallet->mapWallet[outpoint.hash].GetDepthInMainChain());
-        vCoins.push_back(out);
-    }
-       
+    wallet->AvailableCoins(vCoins, true, true);
+
     BOOST_FOREACH(const COutput& out, vCoins)
     {
         COutput cout = out;

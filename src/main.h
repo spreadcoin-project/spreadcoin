@@ -118,7 +118,6 @@ extern std::vector<CMasterNodeVote> darkSendMasterNodeVotes;
 extern std::string strMasterNodePrivKey;
 extern int64 enforceMasternodePaymentsTime;
 #endif // ENABLE_DARKSEND_FEATURES
-extern CWallet pmainWallet;
 extern std::map<uint256, CBlock*> mapOrphanBlocks;
 
 // Settings

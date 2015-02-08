@@ -17,14 +17,14 @@ CMasterNodeSecret::CMasterNodeSecret(CKey privkey)
     this->signature = privkey.Sign(pubkey2.GetHash());
 }
 
-bool MN_SetMy(const COutPoint& outpoint, bool my)
+CMasterNode* MN_SetMy(const COutPoint& outpoint, bool my)
 {
     CMasterNode* pmn = MN_Get(outpoint);
     if (!pmn)
-        return false;
+        return NULL;
 
     pmn->my = my;
-    return true;
+    return pmn;
 }
 
 bool MN_Start(const COutPoint& outpoint, const CMasterNodeSecret& secret)
