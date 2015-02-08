@@ -11,10 +11,10 @@ static int64_t GetMontoneTimeMs()
 
 static const int g_MasternodeMinConfirmations = 50;
 
-static const int g_AnnounceExistenceRestartPeriod = 200;
-static const int g_AnnounceExistencePeriod = 50;
-static const int g_MonitoringPeriod = 200;
-static const int g_MonitoringPeriodMin = 50;
+static const int g_AnnounceExistenceRestartPeriod = 400;
+static const int g_AnnounceExistencePeriod = 100;
+static const int g_MonitoringPeriod = 400;
+static const int g_MonitoringPeriodMin = 150;
 
 // If masternode doesn't respond to some message we assume that it has responded in this amount of time.
 static const double g_PenaltyTime = 500.0;

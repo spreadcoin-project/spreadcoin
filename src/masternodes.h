@@ -11,7 +11,7 @@ static const int64_t g_MinMasternodeAmount = 100*COIN;
 static const int g_MaxMasternodeVotes = 10;
 static const int g_MasternodesElectionPeriod = 60;
 static const int g_MasternodeRewardPercentage = 30;
-static const int g_MaxMasternodes = 1000;
+static const int g_MaxMasternodes = 1440;
 
 // Instant transactions
 static const int g_MaxInstantTxInputs = 15;
