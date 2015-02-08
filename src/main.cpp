@@ -1376,8 +1376,12 @@ int64 GetBlockValue(int nHeight, int64 nFees)
     if (nHeight > (int)getFirstHardforkBlock())
         nSubsidy /= 10;
 
-    if (fTestNet && nHeight < 100)
-        nSubsidy *= 100;
+    if (fTestNet)
+    {
+        nSubsidy *= 10;
+        if (nHeight < 100)
+            nSubsidy *= 10;
+    }
 
     // Subsidy is cut in half every g_RewardHalvingPeriod blocks which will occur approximately every 4 years.
     int halvings = nHeight / g_RewardHalvingPeriod;
