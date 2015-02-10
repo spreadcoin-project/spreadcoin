@@ -971,7 +971,11 @@ int64 CWallet::GetLockedBalance() const
         LOCK(cs_wallet);
         for (COutPoint outpoint : setLockedCoins)
         {
-            nTotal += mapWallet.at(outpoint.hash).vout[outpoint.n].nValue;
+            auto iter = mapWallet.find(outpoint.hash);
+            if (iter != mapWallet.end())
+            {
+                nTotal += iter->second.vout[outpoint.n].nValue;
+            }
         }
     }
     return nTotal;
