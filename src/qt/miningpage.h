@@ -19,6 +19,7 @@ public:
     ~MiningPage();
 
     void setModel(WalletModel *model);
+    void updatePlot();
 
 private:
     Ui::MiningPage *ui;
@@ -29,6 +30,8 @@ private:
     void restartMining(bool fGenerate);
     void timerEvent(QTimerEvent *event);
     void updateUI();
+    QVector<double> vX;
+    QVector<double> vY;
 
 private slots:
 
