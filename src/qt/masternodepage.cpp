@@ -175,9 +175,13 @@ void MasternodePage::updateMasternodes()
     QTableWidget* pTable = ui->tableWidget;
     pTable->setRowCount(0);
 
+    pTable->setRowCount(masternodes.size());
+    int iRow = 0;
+    int n = 0;
     for (const CMasterNode* pmn : masternodes)
     {
         const CMasterNode& mn = *pmn;
+        n += pmn->elected;
 
         bool elected = mn.elected;
         int votes = mn.votes[!mn.elected];
@@ -185,8 +189,6 @@ void MasternodePage::updateMasternodes()
         CBitcoinAddress address;
         address.Set(mn.keyid);
 
-        int iRow = pTable->rowCount();
-        pTable->setRowCount(iRow + 1);
         pTable->setItem(iRow, (int)C_ADDRESS, new QTableWidgetItem(address.ToString().c_str()));
         pTable->setItem(iRow, (int)C_AMOUNT, new QTableWidgetItem(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, mn.amount)));
         pTable->setItem(iRow, (int)C_OUTPUT, new QTableWidgetItem(QString("%1:%2").arg(mn.outpoint.hash.ToString().c_str()).arg(mn.outpoint.n)));
@@ -214,14 +216,9 @@ void MasternodePage::updateMasternodes()
 
             pTable->setCellWidget(iRow, (int)C_CONTROL, pWidget);
         }
+        iRow++;
     }
-
-    int n = 0;
-    for (const CMasterNode* pmn : masternodes)
-    {
-        n += pmn->elected;
-    }
-
+    pTable->setRowCount(iRow);
     ui->labelMasternodes->setText(tr("Masternodes (%1):").arg(n));
 }
 
