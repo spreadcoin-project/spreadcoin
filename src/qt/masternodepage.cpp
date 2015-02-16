@@ -186,6 +186,9 @@ void MasternodePage::updateMasternodes()
         bool elected = mn.elected;
         int votes = mn.votes[!mn.elected];
 
+        if (ui->ShowElectedOnly->isChecked() && !elected) continue;
+        if (ui->ShowMyOnly->isChecked() && !mn.my) continue;
+
         CBitcoinAddress address;
         address.Set(mn.keyid);
 
