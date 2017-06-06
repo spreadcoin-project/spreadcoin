@@ -12,6 +12,7 @@
 #include "ui_interface.h"
 #include "checkqueue.h"
 #include "ecdsa.h"
+#include "fasthash.h"
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -5408,32 +5409,24 @@ void static SpreadCoinMiner(CWallet *pwallet)
         uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
         loop
         {
-            unsigned int nHashesDone = 0;
+            Signer.SignFast(pblock->GetHashForSignature(), pblock->MinerSignature.begin());
+            memcpy(pMinerSignature, pblock->MinerSignature.begin(), pblock->MinerSignature.size());
+            memcpy(pNonce, &pblock->nNonce, sizeof(pblock->nNonce));
+            pblock->hashWholeBlock = CBlock::HashPoKData(PoKData);
 
-            loop
+            CBufferStream<185> Header = pblock->SerializeHeaderForHash2();
+            uint32_t* pNonce2 = (uint32_t*)(Header.begin() + 84);
+
+            if (scanhash_X((uint32_t*)Header.begin(), (const uint32_t*)&hashTarget))
             {
-                if ((pblock->nNonce & NONCE_MASK) == 0)
-                {
-                    Signer.SignFast(pblock->GetHashForSignature(), pblock->MinerSignature.begin());
-                    memcpy(pMinerSignature, pblock->MinerSignature.begin(), pblock->MinerSignature.size());
-                    pblock->hashWholeBlock = CBlock::HashPoKData(PoKData);
-                }
-                bool Good = pblock->GetPoWHash() <= hashTarget && pblock->GetRewardAddress() == pubkey;
-
-                if (Good)
-                {
-                    // Found a solution
-                    SetThreadPriority(THREAD_PRIORITY_NORMAL);
-                    CheckWork(pblock, *pwallet, MiningKey.IsValid()? NULL : &reservekey);
-                    SetThreadPriority(THREAD_PRIORITY_LOWEST);
-                    break;
-                }
-                pblock->nNonce += 1;
-                memcpy(pNonce, &pblock->nNonce, sizeof(pblock->nNonce));
-                nHashesDone += 1;
-                if ((pblock->nNonce & 0xFF) == 0)
-                    break;
+                // Found a solution
+                SetThreadPriority(THREAD_PRIORITY_NORMAL);
+                pblock->nNonce = *pNonce2;
+                CheckWork(pblock, *pwallet, MiningKey.IsValid()? NULL : &reservekey);
+                SetThreadPriority(THREAD_PRIORITY_LOWEST);
+                break;
             }
+            pblock->nNonce = *pNonce2;
 
             // Meter hashes/sec
             static int64 nHashCounter;
@@ -5443,7 +5436,7 @@ void static SpreadCoinMiner(CWallet *pwallet)
                 nHashCounter = 0;
             }
             else
-                nHashCounter += nHashesDone;
+                nHashCounter += NONCE_MASK + 1;
             if (GetTimeMillis() - nHPSTimerStart > 4000)
             {
                 static CCriticalSection cs;
@@ -5495,6 +5488,9 @@ void static SpreadCoinMiner(CWallet *pwallet)
 void GenerateBitcoins(bool fGenerate, CWallet* pwallet)
 {
     static boost::thread_group* minerThreads = NULL;
+
+    if (fGenerate)
+        init_Xhash_contexts();
 
     int nThreads = GetArg("-genproclimit", -1);
     if (nThreads < 0)

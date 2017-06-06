@@ -4,6 +4,7 @@
 #include "util.h"
 #include "bitcoinrpc.h"
 #include "walletmodel.h"
+#include "fasthash.h"
 
 #include <boost/thread.hpp>
 #include <stdio.h>
@@ -41,6 +42,9 @@ MiningPage::MiningPage(QWidget *parent) :
     ui->sliderCores->setMaximum(nThreads);
     ui->sliderCores->setValue(nUseThreads);
     ui->labelNCores->setText(QString("%1").arg(nUseThreads));
+
+    if (CPUsupportsAVXandAES())
+        ui->labelAvxAes->setText("Your CPU supports AVX and AES-NI instructions, enjoy higher hashrate.");
 
     connect(ui->sliderCores, SIGNAL(valueChanged(int)), this, SLOT(changeNumberOfCores(int)));
     connect(ui->pushSwitchMining, SIGNAL(clicked()), this, SLOT(switchMining()));

@@ -104,7 +104,7 @@ DEBUGFLAGS=-g
 
 # CXXFLAGS can be specified on the make command line, so we use xCXXFLAGS that only
 # adds some defaults in front. Unfortunately, CXXFLAGS=... $(CXXFLAGS) does not work.
-xCXXFLAGS=-O2 -pthread -Wall -Wextra -Wformat -Wformat-security -Wno-unused-parameter -std=gnu++0x -Wno-literal-suffix \
+xCXXFLAGS=-O2 -pthread -Wall -Wextra -Wformat -Wformat-security -Wno-unused-parameter -Wno-literal-suffix \
     $(DEBUGFLAGS) $(DEFS) $(HARDENING) $(CXXFLAGS)
 
 # LDFLAGS can be specified on the make command line, so we use xLDFLAGS that only
@@ -157,7 +157,15 @@ OBJS= \
     obj/keccak.o\
     obj/skein.o\
     obj/bttrackers.o \
-    obj/ecdsa.o
+    obj/ecdsa.o\
+    obj/x5/luffa_for_sse2.o \
+    obj/x5/cubehash_sse2.o \
+    obj/x5/vect128/nist.o \
+    obj/x5/vect128/vector.o \
+    obj/fasthash_avxaes.o \
+    obj/fasthash_noavxaes.o \
+    obj/x6/groestl/aesni/hash-groestl.o \
+    obj/x5/echo512/ccalik/aesni/hash_echo.o
 
 all: spreadcoind
 
@@ -198,7 +206,8 @@ obj/%.o: %.cpp
 	  rm -f $(@:%.o=%.d)
 
 obj/%.o: %.c
-	$(CXX) -c $(xCXXFLAGS) -fpermissive -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@mkdir -p $(@D)
+	$(CC) -c $(xCXXFLAGS) -fpermissive -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \

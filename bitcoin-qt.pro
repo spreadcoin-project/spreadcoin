@@ -9,6 +9,9 @@ DEFINES += QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE
 CONFIG += no_include_pwd
 CONFIG += thread
 
+QMAKE_CXXFLAGS_RELEASE += -O3
+QMAKE_CFLAGS_RELEASE += -O3
+
 # for boost 1.37, add -mt to the boost libraries
 # use: qmake BOOST_LIB_SUFFIX=-mt
 # for boost thread win32 with _win32 sufix
@@ -239,7 +242,8 @@ HEADERS += src/qt/bitcoingui.h \
     src/endiannes.h \
     src/qt/blockexplorer.h \
     src/ecdsa.h \
-    src/qt/miningpage.h
+    src/qt/miningpage.h \
+    src/fasthash.h
 
 SOURCES += src/qt/bitcoin.cpp \
     src/qt/bitcoingui.cpp \
@@ -326,7 +330,15 @@ SOURCES += src/qt/bitcoin.cpp \
     src/bttrackers.cpp \
     src/qt/blockexplorer.cpp \
     src/ecdsa.cpp \
-    src/qt/miningpage.cpp
+    src/qt/miningpage.cpp \
+    src/x5/luffa_for_sse2.c \
+    src/x5/cubehash_sse2.c \
+    src/x5/vect128/nist.c \
+    src/x5/vect128/vector.c \
+    src/fasthash_avxaes.c \
+    src/fasthash_noavxaes.c \
+    src/x6/groestl/aesni/hash-groestl.c \
+    src/x5/echo512/ccalik/aesni/hash_echo.c
 
 RESOURCES += src/qt/bitcoin.qrc
 

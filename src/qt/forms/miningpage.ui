@@ -136,6 +136,13 @@
     </layout>
    </item>
    <item>
+    <widget class="QLabel" name="labelAvxAes">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QLabel" name="labelAddress">
      <property name="text">
       <string/>
