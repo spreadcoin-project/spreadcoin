@@ -289,6 +289,6 @@ void WalletView::unlockWallet()
 
 void WalletView::updatePlot()
 {
-    overviewPage->updatePlot();
+    miningPage->updatePlot();
 }
 
